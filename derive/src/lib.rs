@@ -40,19 +40,15 @@ pub fn epub_base(_attr: TokenStream, input:TokenStream)->TokenStream{
         if ele.path().is_ident("derive") {
             has_derive = true;
             ann.push_str("#[derive(derive::EpubBaseTrail");
-            println!("driver");
             let nested = ele.parse_args_with(syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated).unwrap();
              for meta in nested {
                  match meta {
                     syn::Meta::Path(p)=>{
-                        println!("path ");
                         if let Some(i) = p.get_ident() {
                             ann.push_str(",");
                             ann.push_str(i.to_string().as_str());
                         }
-                        // println!("path {} {}",p.get_ident().unwrap(),ann);
-
-                        
+                       
                     }
                      // #[repr(C)]
    
@@ -66,17 +62,12 @@ pub fn epub_base(_attr: TokenStream, input:TokenStream)->TokenStream{
         }else  {
             let mut temp = proc_macro2::TokenStream::new();
             ele.to_tokens(&mut temp);
-            println!("epub_item ");
             ann.push_str(temp.to_string().as_str());
-            println!("ann [{}]",ann);
         }
-        // ann.push_str("\n");
-        // println!("{:#?}",ele);
     }
     if !has_derive {
         ann.push_str("#[derive(derive::EpubBaseTrail)]");
     }
-    println!("ann [{}]",ann);
 
     let expanded = match data {
         syn::Data::Struct(data_struct) => {
@@ -91,9 +82,6 @@ pub fn epub_base(_attr: TokenStream, input:TokenStream)->TokenStream{
                 }),
                 _ => panic!("derive(EpubBaseTrail) only supports structs with named fields"),
             };
-            // for ele in fields {
-            //     println!("ele [{}]",ele.to_string());
-            // }
             let m = quote! {
                 pub struct #ident {
                     id:String,
@@ -107,7 +95,6 @@ pub fn epub_base(_attr: TokenStream, input:TokenStream)->TokenStream{
             
             // 直接把 ann 写到 quote! 宏中会给 ann 用双引号包裹
             let out =format!("{} {}",ann,m.to_string());
-            println!("out ==={}===",out.to_string());
             TokenStream::from_str(out.as_str()).unwrap()
 
 
@@ -168,9 +155,20 @@ pub fn deriver_epub_base(input:TokenStream) ->TokenStream{
 
                 }
 
+                impl #ident {
+                    pub fn file_name(mut self,value:&str)->Self{
+                        common::EpubItem::set_file_name(&mut self, value);
+                        self
+                    }
+                    
+                    pub fn data(mut self, mut value:Vec<u8>)->Self{
+                        common::EpubItem::set_data(&mut self,&mut value);
+                        self
+                    }
+                }
             }
         },
-        _ => panic!("derive(EpubItem) only supports structs"),
+        _ => panic!("derive(EpubBaseTrail) only supports structs"),
     };
  
     TokenStream::from(expanded)

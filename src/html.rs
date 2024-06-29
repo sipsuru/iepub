@@ -1,4 +1,4 @@
-use std::{collections::HashMap};
+use std::{collections::HashMap, io::IoSlice};
 
 use crate::{EpubBook, EpubError, EpubHtml, EpubNav, EpubResult};
 
@@ -183,7 +183,11 @@ pub(crate) fn to_toc_xml(book_title: &str, nav: &[EpubNav]) -> String {
 
 impl From<quick_xml::Error> for EpubError {
     fn from(value: quick_xml::Error) -> Self {
-        EpubError::Xml(value)
+        match value {
+            quick_xml::Error::Io(e) => EpubError::Io(std::io::Error::other(e) ),
+            _ => EpubError::Xml(value),
+        }
+        
     }
 }
 
@@ -217,16 +221,6 @@ fn get_media_type(file_name: &str) -> String {
     };
 
     String::new()
-
-    // return if f.ends_with(".gif") {
-    //     String::from("image/gif")
-    // }else if f.ends_with(".jpeg") || f.ends_with(".jpg") {
-    //     String::from("image/jpeg")
-    // } else if f.ends_with(".png") {
-    //     String::from("image/jpeg")
-    // } else{
-    //     String::new()
-    // }
 }
 
 fn write_metadata(
@@ -344,17 +338,6 @@ pub(crate) fn do_to_opf(book: &EpubBook,generator:&str) -> EpubResult<String> {
 
     use quick_xml::events::{BytesStart, Event};
     
-    
-    
-
-    //  let mut buffer = Vec::new();
-    //  let mut writer = Writer::new_with_indent(&mut buffer, b' ', 4);
-    // writer.create_element("package")
-    // .with_attribute(("xmlns","http://www.idpf.org/2007/opf"))
-
-    // .write_empty()
-    // ;
-
     let vue: Vec<u8> = Vec::new();
     let mut xml = quick_xml::Writer::new(std::io::Cursor::new(vue));
     use quick_xml::events::*;

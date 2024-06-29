@@ -6,7 +6,8 @@ use derive::epub_base;
 use html::{to_html, to_nav_html, to_opf, to_toc_xml};
 
 mod html;
-mod zip_writer;
+pub mod builder;
+pub mod zip_writer;
 
 shadow_rs::shadow!(build);
 #[warn(dead_code)]
@@ -91,6 +92,10 @@ pub struct EpubAssets {
     
 }
 
+impl EpubAssets{
+
+}
+
 ///
 /// 目录信息
 ///
@@ -104,6 +109,15 @@ pub struct EpubNav {
     title: String,
     child: Vec<EpubNav>,
 }
+
+impl EpubNav{
+    pub fn title(mut self,title:&str)->Self{
+        self.title.clear();
+        self.title.push_str(title);
+        self
+    }
+}
+
 ///
 /// 书籍元数据
 ///
@@ -205,8 +219,6 @@ impl EpubBook {
         self.info.identifier.push_str(identifier);
     }
 
-
-
     derive::epub_method_option!(creator);
     derive::epub_method_option!(description);
     derive::epub_method_option!(contributor);
@@ -261,7 +273,19 @@ impl EpubBook {
 
 type EpubResult<T> = Result<T, EpubError>;
 
-pub(crate) trait EpubWriter {
+///
+/// 空结构，
+#[derive(Default)]
+pub struct EpubWriterEmpty{
+
+}
+
+///
+/// epub输出实现，可通过实现该trait从而自定义输出方案。
+/// 
+/// 具体实现应该是写入到zip文件
+/// 
+pub trait EpubWriter{
     /// 新建
     /// file 输出的epub文件路径
     ///
@@ -320,7 +344,7 @@ static CONTAINER_XML: &str = r#"<?xml version='1.0' encoding='utf-8'?>
 
 impl EpubBook {
     /// 写入基础的文件
-    fn write_base(&self, writer: &mut impl EpubWriter) -> Result<(), EpubError> {
+    fn write_base(&self, writer: &mut impl EpubWriter) -> EpubResult<()> {
         writer.write(
             "META-INF/container.xml",
             CONTAINER_XML.replace("{opf}", common::OPF).as_bytes(),
@@ -333,7 +357,7 @@ impl EpubBook {
     }
 
     /// 写入资源文件
-    fn write_assets(&self, writer: &mut impl EpubWriter) -> Result<(), EpubError> {
+    fn write_assets(&self, writer: &mut impl EpubWriter) -> EpubResult<()> {
         let m = &self.assets;
         for ele in m {
             if ele.data.is_none() {
@@ -348,7 +372,7 @@ impl EpubBook {
     }
 
     /// 写入章节文件
-    fn write_chapters(&self, writer: &mut impl EpubWriter) -> Result<(), EpubError> {
+    fn write_chapters(&self, writer: &mut impl EpubWriter) -> EpubResult<()> {
         let chap = &self.chapters;
         for ele in chap {
             if ele.data.is_none() {
@@ -377,7 +401,7 @@ impl EpubBook {
         Ok(())
     }
     /// 写入目录
-    fn write_nav(&self, writer: &mut impl EpubWriter) -> Result<(), EpubError> {
+    fn write_nav(&self, writer: &mut impl EpubWriter) -> EpubResult<()> {
         // 目录包括两部分，一是自定义的用于书本导航的html，二是epub规范里的toc.ncx文件
         writer.write(
             common::NAV,
@@ -396,7 +420,7 @@ impl EpubBook {
     ///
     /// 拷贝资源文件以及生成对应的xhtml文件
     ///
-    fn write_cover(&self, writer: &mut impl EpubWriter) -> Result<(), EpubError> {
+    fn write_cover(&self, writer: &mut impl EpubWriter) ->EpubResult<()> {
         if let Some(cover) = &self.cover {
             writer.write(
                 format!("{}{}", common::EPUB, cover.file_name.as_str()).as_str(),
@@ -414,18 +438,44 @@ impl EpubBook {
         }
         Ok(())
     }
+    ///
+    /// 
+    /// 写入到指定文件
+    /// 
+    /// [file] 文件路径，一般以.epub结尾
+    /// 
+    pub fn write(&self, file: &str) -> EpubResult<()> {
+        let mut writer = zip_writer::ZipFileWriter::new(file)?;
+        self.write_with_writer(&mut writer)
+    }
 
-    pub fn write(&self, file: &str) -> Result<(), EpubError> {
-        let mut writer = zip_writer::ZipCratesWriter::new(file).expect("create error");
-
-        self.write_base(&mut writer)?;
-        self.write_assets(&mut writer)?;
-        self.write_chapters(&mut writer)?;
-        self.write_nav(&mut writer)?;
-        self.write_cover(&mut writer)?;
+    ///
+    /// 使用自定义输出方案
+    /// 
+    /// # Examples 
+    /// 
+    /// 1. 写入内存
+    /// 
+    /// ```rust
+    /// let mut writer = zip_writer::ZipMemoeryWriter::new("无用").unwrap();
+    /// 
+    /// let mut book = EpubBook::default();
+    /// book.write_with_writer(&mut writer);
+    /// 
+    /// ```
+    /// 
+    /// 
+    pub fn write_with_writer(&self,writer:&mut impl EpubWriter) -> EpubResult<()>{
+        
+        self.write_base(writer)?;
+        self.write_assets(writer)?;
+        self.write_chapters(writer)?;
+        self.write_nav(writer)?;
+        self.write_cover(writer)?;
 
         Ok(())
     }
+
 }
 
 #[cfg(test)]
