@@ -35,9 +35,9 @@ pub trait EpubItem {
     }
 
     fn set_data(&mut self, data: Vec<u8>);
-    /// 
+    ///
     /// 返回数据
-    /// 
+    ///
     fn data(&self) -> Option<&[u8]>;
 }
 

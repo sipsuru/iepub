@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, slice::Iter};
 use std::str::FromStr;
 
 use common::{EpubItem, LinkRel};
@@ -10,7 +10,7 @@ mod html;
 pub mod zip_writer;
 
 shadow_rs::shadow!(build);
-#[warn(dead_code)]
+#[allow(dead_code)]
 /**
  * 链接文件，可能是css
  */
@@ -30,7 +30,6 @@ pub struct EpubHtml {
     title: String,
     /// 自定义的css，会被添加到link下
     css: Option<String>,
-
 }
 
 impl EpubHtml {
@@ -108,7 +107,7 @@ impl EpubAssets {}
 /// 支持嵌套
 ///
 #[epub_base]
-#[derive(Debug, Default)]
+#[derive(Debug, Default,Clone)]
 pub struct EpubNav {
     /// 章节目录
     /// 如果需要序号需要调用方自行处理
@@ -127,6 +126,13 @@ impl EpubNav {
     pub fn with_title(mut self, title: &str) -> Self {
         self.set_title(title);
         self
+    }
+    ///
+    ///
+    /// 添加下级目录
+    ///
+    pub fn push(&mut self, child: EpubNav) {
+        self.child.push(child);
     }
 }
 
@@ -215,13 +221,13 @@ pub struct EpubBook {
 }
 
 impl EpubBook {
-    derive::option_string_method!(info,creator);
-    derive::option_string_method!(info,description);
-    derive::option_string_method!(info,contributor);
-    derive::option_string_method!(info,date);
-    derive::option_string_method!(info,format);
-    derive::option_string_method!(info,publisher);
-    derive::option_string_method!(info,subject);
+    derive::option_string_method!(info, creator);
+    derive::option_string_method!(info, description);
+    derive::option_string_method!(info, contributor);
+    derive::option_string_method!(info, date);
+    derive::option_string_method!(info, format);
+    derive::option_string_method!(info, publisher);
+    derive::option_string_method!(info, subject);
     // /
     // / 设置epub最后修改时间
     // /
@@ -240,10 +246,6 @@ impl EpubBook {
     pub fn set_title(&mut self, title: &str) {
         self.info.title.clear();
         self.info.title.push_str(title);
-    }
-    pub fn with_title(mut self, title: &str) -> Self {
-        self.set_title(title);
-        self
     }
     pub fn title(&self) -> &str {
         self.info.title.as_str()
@@ -273,6 +275,26 @@ impl EpubBook {
     pub fn meta(&self) -> &[EpubMetaData] {
         &self.meta
     }
+    ///
+    /// 添加目录
+    ///
+    #[inline]
+    pub fn add_nav(&mut self, nav: EpubNav) {
+        self.nav.push(nav);
+    }
+
+    pub fn add_assets(&mut self, assets: EpubAssets) {
+        self.assets.push(assets);
+    }
+
+    pub fn add_chapter(&mut self, chap: EpubHtml) {
+        self.chapters.push(chap);
+    }
+
+    #[inline]
+    pub fn chapters(&self) -> Iter<EpubHtml> {
+        self.chapters.iter()
+    }
 
     pub fn set_cover(&mut self, cover: EpubAssets) {
         self.cover = Some(cover);
@@ -280,11 +302,6 @@ impl EpubBook {
 }
 
 type EpubResult<T> = Result<T, EpubError>;
-
-///
-/// 空结构，
-#[derive(Default)]
-pub struct EpubWriterEmpty {}
 
 ///
 /// epub输出实现，可通过实现该trait从而自定义输出方案。
@@ -330,7 +347,7 @@ pub enum EpubError {
 
 impl std::fmt::Display for EpubError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:?}",self)
+        write!(f, "{:?}", self)
     }
 }
 
@@ -392,7 +409,6 @@ impl EpubBook {
                 format!("{}{}", common::EPUB, ele.file_name()).as_str(),
                 html.as_bytes(),
             )?;
-
         }
 
         Ok(())
@@ -481,13 +497,12 @@ mod tests {
         let mut book = EpubBook::default();
 
         // 添加文本资源文件
-        let assets = &mut book.assets;
 
         let mut css = EpubAssets::default();
         css.set_file_name("style/1.css");
         css.set_data(String::from("ok").as_bytes().to_vec());
 
-        assets.push(css);
+        book.add_assets(css);
 
         // 添加目录，注意目录和章节并无直接关联关系，需要自行维护保证导航到正确位置
         let mut n = EpubNav::default();
@@ -504,10 +519,10 @@ mod tests {
         let mut n3 = EpubNav::default();
         n3.set_title("第一卷 第二章");
         n3.set_file_name("chaps/2.xhtml");
-        n1.child.push(n2);
+        n1.push(n2);
 
-        book.nav.push(n);
-        book.nav.push(n1);
+        book.add_nav(n);
+        book.add_nav(n1);
         // 添加章节
         let mut chap = EpubHtml::default();
         chap.set_file_name("chaps/0.xhtml");
@@ -515,20 +530,20 @@ mod tests {
         // 章节的数据并不需要填入完整的html，只需要片段即可，输出时会结合其他数据拼接成完整的html
         chap.set_data(String::from("<p>章节内容html片段</p>").as_bytes().to_vec());
 
-        book.chapters.push(chap);
+        book.add_chapter(chap);
 
         chap = EpubHtml::default();
         chap.set_file_name("chaps/1.xhtml");
         chap.set_title("标题2");
         chap.set_data(String::from("第一卷 第一章content").as_bytes().to_vec());
 
-        book.chapters.push(chap);
+        book.add_chapter(chap);
         chap = EpubHtml::default();
         chap.set_file_name("chaps/2.xhtml");
         chap.set_title("标题2");
         chap.set_data(String::from("第一卷 第二章content").as_bytes().to_vec());
 
-        book.chapters.push(chap);
+        book.add_chapter(chap);
 
         book.set_title("书名");
         book.set_creator("作者");
@@ -547,7 +562,7 @@ mod tests {
 
         cover.set_data(data);
 
-        book.cover = Some(cover);
+        book.set_cover(cover);
 
         book.write("target/test.epub").expect("write error");
     }

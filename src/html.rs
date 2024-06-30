@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io::IoSlice};
+use std::collections::HashMap;
 
 use common::EpubItem;
 
@@ -186,10 +186,9 @@ pub(crate) fn to_toc_xml(book_title: &str, nav: &[EpubNav]) -> String {
 impl From<quick_xml::Error> for EpubError {
     fn from(value: quick_xml::Error) -> Self {
         match value {
-            quick_xml::Error::Io(e) => EpubError::Io(std::io::Error::other(e) ),
+            quick_xml::Error::Io(e) => EpubError::Io(std::io::Error::other(e)),
             _ => EpubError::Xml(value),
         }
-        
     }
 }
 
@@ -227,7 +226,7 @@ fn get_media_type(file_name: &str) -> String {
 
 fn write_metadata(
     book: &EpubBook,
-    generator:&str,
+    generator: &str,
     xml: &mut quick_xml::Writer<std::io::Cursor<Vec<u8>>>,
 ) -> EpubResult<()> {
     use quick_xml::events::{BytesStart, BytesText, Event};
@@ -335,11 +334,8 @@ fn write_metadata(
     Ok(())
 }
 
-pub(crate) fn do_to_opf(book: &EpubBook,generator:&str) -> EpubResult<String> {
-    // let mut xml = String::from("");
+pub(crate) fn do_to_opf(book: &EpubBook, generator: &str) -> EpubResult<String> {
 
-    use quick_xml::events::{BytesStart, Event};
-    
     let vue: Vec<u8> = Vec::new();
     let mut xml = quick_xml::Writer::new(std::io::Cursor::new(vue));
     use quick_xml::events::*;
@@ -355,7 +351,7 @@ pub(crate) fn do_to_opf(book: &EpubBook,generator:&str) -> EpubResult<String> {
     xml.write_event(Event::Start(html.borrow()))?;
 
     // 写入 metadata
-    write_metadata(book, generator,&mut xml)?;
+    write_metadata(book, generator, &mut xml)?;
 
     // manifest
     let manifest = BytesStart::new("manifest");
@@ -366,10 +362,7 @@ pub(crate) fn do_to_opf(book: &EpubBook,generator:&str) -> EpubResult<String> {
         xml.create_element("item")
             .with_attribute(("href", cover.file_name()))
             .with_attribute(("id", "cover-img"))
-            .with_attribute((
-                "media-type",
-                get_media_type(cover.file_name()).as_str(),
-            ))
+            .with_attribute(("media-type", get_media_type(cover.file_name()).as_str()))
             .with_attribute(("properties", "cover-image"))
             .write_empty()?;
         xml.create_element("item")
@@ -391,10 +384,7 @@ pub(crate) fn do_to_opf(book: &EpubBook,generator:&str) -> EpubResult<String> {
         xml.create_element("item")
             .with_attribute(("href", ele.file_name()))
             .with_attribute(("id", format!("assets_{}", index).as_str()))
-            .with_attribute((
-                "media-type",
-                get_media_type(ele.file_name()).as_str(),
-            ))
+            .with_attribute(("media-type", get_media_type(ele.file_name()).as_str()))
             .write_empty()?;
     }
     // toc
@@ -437,8 +427,8 @@ pub(crate) fn do_to_opf(book: &EpubBook,generator:&str) -> EpubResult<String> {
 }
 
 /// 生成OPF
-pub(crate) fn to_opf(book: &EpubBook,generator:&str) -> String {
-    match do_to_opf(book,generator) {
+pub(crate) fn to_opf(book: &EpubBook, generator: &str) -> String {
+    match do_to_opf(book, generator) {
         Ok(s) => s,
         Err(_) => String::new(),
     }
@@ -458,7 +448,7 @@ mod test {
     #[test]
     fn test_to_html() {
         let mut t = EpubHtml::default();
-        t.title = String::from("title");
+        t.set_title("title");
         t.set_data(String::from("ok").as_bytes().to_vec());
         t.set_css("#id{width:10%}");
         let link = EpubLink {
@@ -470,10 +460,11 @@ mod test {
         t.add_link(link);
         let html = to_html(&t);
 
-
         println!("{}", html);
 
-        assert_eq!(html,r###"<?xml version='1.0' encoding='utf-8'?>
+        assert_eq!(
+            html,
+            r###"<?xml version='1.0' encoding='utf-8'?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" epub:prefix="z3998: http://www.daisy.org/z3998/2012/vocab/structure/#" lang="zh" xml:lang="zh">
   <head>
@@ -485,26 +476,27 @@ mod test {
     <h1>title</h1>
 ok
   </body>
-</html>"###);
+</html>"###
+        );
     }
 
     #[test]
     fn test_to_nav_html() {
         let mut n = EpubNav::default();
-        n.title = String::from("作品说明");
+        n.set_title("作品说明");
         n.set_file_name("file_name");
 
         let mut n1 = EpubNav::default();
-        n1.title = String::from("第一卷");
+        n1.set_title("第一卷");
 
         let mut n2 = EpubNav::default();
-        n2.title = String::from("第一卷 第一章");
+        n2.set_title("第一卷 第一章");
         n2.set_file_name("0.xhtml");
 
         let mut n3 = EpubNav::default();
-        n3.title = String::from("第一卷 第二章");
+        n3.set_title("第一卷 第二章");
         n3.set_file_name("1.xhtml");
-        n1.child.push(n2);
+        n1.push(n2);
 
         let nav = vec![n, n1];
 
@@ -533,20 +525,20 @@ ok
     #[test]
     fn test_to_toc_xml() {
         let mut n = EpubNav::default();
-        n.title = String::from("作品说明");
+        n.set_title("作品说明");
         n.set_file_name("file_name");
 
         let mut n1 = EpubNav::default();
-        n1.title = String::from("第一卷");
+        n1.set_title("第一卷");
 
         let mut n2 = EpubNav::default();
-        n2.title = String::from("第一卷 第一章");
+        n2.set_title("第一卷 第一章");
         n2.set_file_name("0.xhtml");
 
         let mut n3 = EpubNav::default();
-        n3.title = String::from("第一卷 第二章");
+        n3.set_title("第一卷 第二章");
         n3.set_file_name("1.xhtml");
-        n1.child.push(n2);
+        n1.push(n2);
 
         let nav = vec![n, n1];
 
@@ -576,29 +568,29 @@ ok
         epub.set_title("中文");
         epub.set_creator("作者");
         let mut n = EpubNav::default();
-        n.title = String::from("作品说明");
+        n.set_title("作品说明");
         n.set_file_name("file_name");
 
         let mut n1 = EpubNav::default();
-        n1.title = String::from("第一卷");
+        n1.set_title("第一卷");
 
         let mut n2 = EpubNav::default();
-        n2.title = String::from("第一卷 第一章");
+        n2.set_title("第一卷 第一章");
         n2.set_file_name("0.xhtml");
 
         let mut n3 = EpubNav::default();
-        n3.title = String::from("第一卷 第二章");
+        n3.set_title("第一卷 第二章");
         n3.set_file_name("1.xhtml");
-        n1.child.push(n2);
+        n1.push(n2);
 
-        epub.nav.push(n);
-        epub.nav.push(n1);
+        epub.add_nav(n);
+        epub.add_nav(n1);
 
-        epub.assets.push(EpubAssets::default());
+        epub.add_assets(EpubAssets::default());
 
-        epub.chapters.push(EpubHtml::default());
+        epub.add_chapter(EpubHtml::default());
 
-        epub.cover = Some(EpubAssets::default());
+        epub.set_cover(EpubAssets::default());
 
         epub.add_meta(
             EpubMetaData::default()
@@ -609,7 +601,7 @@ ok
         epub.set_date("2024-06-28T08:07:07UTC");
         epub.set_last_modify("2024-06-28T03:07:07UTC");
 
-        let res = to_opf(&epub,"epub-rs");
+        let res = to_opf(&epub, "epub-rs");
         println!("[{}]", res);
 
         let ass: &str = r###"<?xml version="1.0" encoding="utf-8"?><package xmlns="http://www.idpf.org/2007/opf" unique-identifier="id" version="3.0" prefix="rendition: http://www.idpf.org/vocab/rendition/#"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf"><meta property="dcterms:modified">2024-06-28T03:07:07UTC</meta><dc:date id="date">2024-06-28T08:07:07UTC</dc:date><meta name="generator" content="epub-rs"/><dc:identifier id="id"></dc:identifier><dc:title>中文</dc:title><dc:creator id="creator">作者</dc:creator><meta name="cover" content="cover-img"/><dc:creator id="creator">作者</dc:creator><meta ok="ov">new</meta></metadata><manifest><item href="" id="cover-img" media-type="" properties="cover-image"/><item href="cover.xhtml" id="cover" media-type="application/xhtml+xml"/><item href="" id="chap_0" media-type="application/xhtml+xml"/><item href="" id="assets_0" media-type=""/><item href="toc.ncx" id="toc" media-type="application/x-dtbncx+xml"/><item href="nav.xhtml" id="nav" media-type="application/xhtml+xml" properties="nav"/></manifest><spine toc="ncx"><itemref idref="nav"/><itemref idref="chap_0"/></spine></package>"###;

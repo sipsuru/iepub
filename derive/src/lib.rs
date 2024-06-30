@@ -185,6 +185,5 @@ pub fn deriver_epub_base(input: TokenStream) -> TokenStream {
         _ => panic!("derive(EpubBaseTrail) only supports structs"),
     };
 
-    println!("{}", expanded);
     TokenStream::from(expanded)
 }

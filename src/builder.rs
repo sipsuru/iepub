@@ -17,6 +17,12 @@ pub struct EpubBuilder {
     nav: Vec<EpubNav>,
 }
 
+impl Default for EpubBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EpubBuilder {
     pub fn new() -> Self {
         EpubBuilder {
@@ -89,10 +95,10 @@ impl EpubBuilder {
     /// 添加资源文件
     ///
     pub fn add_assets(mut self, file_name: &str, data: Vec<u8>) -> Self {
-        self.book.assets.push(
+        self.book.add_assets(
             EpubAssets::default()
                 .with_file_name(file_name)
-                .with_data(data),
+                .with_data(data)
         );
         self
     }
@@ -104,10 +110,10 @@ impl EpubBuilder {
     /// [data] 数据
     ///
     pub fn cover(mut self, file_name: &str, data: Vec<u8>) -> Self {
-        self.book.cover = Some(
+        self.book.set_cover(
             EpubAssets::default()
                 .with_file_name(file_name)
-                .with_data(data),
+                .with_data(data)
         );
 
         self
@@ -122,7 +128,7 @@ impl EpubBuilder {
     ///
     ///
     pub fn add_chapter(mut self, chapter: EpubHtml) -> Self {
-        self.book.chapters.push(chapter);
+        self.book.add_chapter(chapter);
         self
     }
 
@@ -136,17 +142,25 @@ impl EpubBuilder {
 
     fn gen_nav(&mut self) {
         if self.custome_nav {
-            self.book.nav.append(&mut self.nav);
+            for ele in &mut self.nav {
+                self.book.add_nav(ele.clone());
+            }
         } else {
             // 生成简单目录
             let mut nav: Vec<EpubNav> = Vec::new();
-            for (index, ele) in self.book.chapters.iter().enumerate() {
-                self.book.nav.push(
+            for ele in self.book.chapters() {
+                // 不能一次循环直接添加，因为会出现重复借用
+                nav.push(
                     EpubNav::default()
                         .with_title(ele.title())
-                        .with_file_name(ele.file_name()),
+                        .with_file_name(ele.file_name())
                 );
             }
+
+            for ele in nav {
+                self.book.add_nav(ele);
+            }
+
         }
     }
 
@@ -159,19 +173,36 @@ impl EpubBuilder {
     }
 
     ///
+    /// 返回epub实例，将会消耗构造器所有权
+    ///
+    ///
+    pub fn book(mut self) -> EpubBook {
+        self.gen_last_modify();
+        self.gen_nav();
+        self.book
+    }
+
+    ///
     /// 输出到文件
     ///
     pub fn file(mut self, file: &str) -> EpubResult<()> {
+        self.gen_last_modify();
         self.gen_nav();
         self.book.write(file)
     }
 
-    pub fn mem(mut self, mut data: Vec<u8>) -> EpubResult<()> {
+    /// 
+    /// 输出到内存
+    /// 
+    pub fn mem(mut self) -> EpubResult<Vec<u8>> {
+        self.gen_last_modify();
         self.gen_nav();
 
         let mut writer = zip_writer::ZipMemoeryWriter::new("")?;
 
-        self.book.write_with_writer(&mut writer)
+        self.book.write_with_writer(&mut writer)?;
+
+        writer.data()
     }
 }
 
@@ -183,13 +214,19 @@ mod tests {
 
     #[test]
     fn test() {
-        EpubBuilder::new()
+        EpubBuilder::default()
+            .with_title("书名")
+            .with_creator("作者")
+            .with_date("2024-03-14")
+            .with_description("一本好书")
+            .with_identifier("isbi")
+            .with_publisher("行星出版社")
             .add_chapter(
                 EpubHtml::default()
                     .with_file_name("0.xml")
-                    .with_data(format!("<p>锻炼</p>").as_bytes().to_vec()),
+                    .with_data("<p>锻炼</p>".to_string().as_bytes().to_vec()),
             )
-            .add_assets("1.css", format!("p{{color:red}}").as_bytes().to_vec())
+            .add_assets("1.css", "p{color:red}".to_string().as_bytes().to_vec())
             .metadata("s", "d")
             .metadata("h", "m")
             .file("target/build.epub")
