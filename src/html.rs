@@ -1,5 +1,7 @@
 use std::{collections::HashMap, io::IoSlice};
 
+use common::EpubItem;
+
 use crate::{EpubBook, EpubError, EpubHtml, EpubNav, EpubResult};
 
 static XHTML_1: &str = r#"<?xml version='1.0' encoding='utf-8'?>
@@ -56,7 +58,7 @@ pub(crate) fn to_html(chap: &EpubHtml) -> String {
         }
     }
 
-    let cus_css = chap.get_css();
+    let cus_css = chap.css();
     if let Some(v) = cus_css {
         css.push_str(format!("\n<style type=\"text/css\">{}</style>", v).as_str());
     }
@@ -70,7 +72,7 @@ pub(crate) fn to_html(chap: &EpubHtml) -> String {
         XHTML_3,
         chap.title,
         XHTML_4,
-        String::from_utf8(chap.data.as_ref().unwrap().to_vec())
+        String::from_utf8(chap.data().as_ref().unwrap().to_vec())
             .unwrap()
             .as_str(), // 正文
         XHTML_5
@@ -87,8 +89,8 @@ fn to_nav_xml(nav: &[EpubNav]) -> String {
             xml.push_str(
                 format!(
                     "<li><a href=\"{}\">{}</a></li>",
-                    ele.file_name.as_str(),
-                    ele.title.as_str()
+                    ele.file_name(),
+                    ele.title()
                 )
                 .as_str(),
             );
@@ -96,8 +98,8 @@ fn to_nav_xml(nav: &[EpubNav]) -> String {
             xml.push_str(
                 format!(
                     "<li><a href=\"{}\">{}</a>{}</li>",
-                    ele.child[0].file_name.as_str(),
-                    ele.title.as_str(),
+                    ele.child[0].file_name(),
+                    ele.title(),
                     to_nav_xml(&ele.child).as_str()
                 )
                 .as_str(),
@@ -136,8 +138,8 @@ fn to_toc_xml_point(nav: &[EpubNav], parent: usize) -> String {
             xml.push_str(
                 format!(
                     "<navLabel><text>{}</text></navLabel><content src=\"{}\"></content>",
-                    ele.title.as_str(),
-                    ele.file_name.as_str()
+                    ele.title(),
+                    ele.file_name()
                 )
                 .as_str(),
             );
@@ -145,8 +147,8 @@ fn to_toc_xml_point(nav: &[EpubNav], parent: usize) -> String {
             xml.push_str(
                 format!(
                     "<navLabel><text>{}</text></navLabel><content src=\"{}\"></content>{}",
-                    ele.title.as_str(),
-                    ele.child[0].file_name.as_str(),
+                    ele.title(),
+                    ele.child[0].file_name(),
                     to_toc_xml_point(&ele.child, index).as_str()
                 )
                 .as_str(),
@@ -238,7 +240,7 @@ fn write_metadata(
     xml.write_event(Event::Start(metadata.borrow()))?;
 
     // metadata 内元素
-    let now = book.get_last_modify().map_or_else(
+    let now = book.last_modify().map_or_else(
         || {
             format!("{}", chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%Z")) // chrono 可以自己实现
         },
@@ -249,7 +251,7 @@ fn write_metadata(
         .with_attribute(("property", "dcterms:modified"))
         .write_text_content(BytesText::new(now.as_str()))?;
 
-    if let Some(v) = book.get_date() {
+    if let Some(v) = book.date() {
         xml.create_element("dc:date")
             .with_attribute(("id", "date"))
             .write_text_content(BytesText::new(v))?;
@@ -262,18 +264,18 @@ fn write_metadata(
 
     xml.create_element("dc:identifier")
         .with_attribute(("id", "id"))
-        .write_text_content(BytesText::new(book.get_identifier()))?;
+        .write_text_content(BytesText::new(book.identifier()))?;
     xml.create_element("dc:title")
-        .write_text_content(BytesText::new(book.get_title()))?;
+        .write_text_content(BytesText::new(book.title()))?;
     // xml
     // .create_element("dc:lang")
     // .write_text_content(BytesText::new(book.info.title.as_str()));
-    if let Some(creator) = book.get_creator() {
+    if let Some(creator) = book.creator() {
         xml.create_element("dc:creator")
             .with_attribute(("id", "creator"))
             .write_text_content(BytesText::new(creator))?;
     }
-    if let Some(desc) = book.get_description() {
+    if let Some(desc) = book.description() {
         xml.create_element("dc:description")
             .write_text_content(BytesText::new(desc))?;
 
@@ -288,40 +290,40 @@ fn write_metadata(
             .write_empty()?;
     }
 
-    if let Some(creator) = book.get_creator() {
+    if let Some(creator) = book.creator() {
         xml.create_element("dc:creator")
             .with_attribute(("id", "creator"))
             .write_text_content(BytesText::new(creator))?;
     }
 
-    if let Some(v) = book.get_format() {
+    if let Some(v) = book.format() {
         xml.create_element("dc:format")
             .with_attribute(("id", "format"))
             .write_text_content(BytesText::new(v))?;
     }
-    if let Some(v) = book.get_publisher() {
+    if let Some(v) = book.publisher() {
         xml.create_element("dc:publisher")
             .with_attribute(("id", "publisher"))
             .write_text_content(BytesText::new(v))?;
     }
-    if let Some(v) = book.get_subject() {
+    if let Some(v) = book.subject() {
         xml.create_element("dc:subject")
             .with_attribute(("id", "subject"))
             .write_text_content(BytesText::new(v))?;
     }
-    if let Some(v) = book.get_contributor() {
+    if let Some(v) = book.contributor() {
         xml.create_element("dc:contributor")
             .with_attribute(("id", "contributor"))
             .write_text_content(BytesText::new(v))?;
     }
 
     // 自定义的meta
-    for ele in book.get_meta() {
+    for ele in book.meta() {
         let mut x = xml.create_element("meta");
-        for (key, value) in ele.get_attrs() {
+        for (key, value) in ele.attrs() {
             x = x.with_attribute((key.as_str(), value.as_str()));
         }
-        if let Some(t) = ele.get_text() {
+        if let Some(t) = ele.text() {
             x.write_text_content(BytesText::new(t))?;
         } else {
             x.write_empty()?;
@@ -362,11 +364,11 @@ pub(crate) fn do_to_opf(book: &EpubBook,generator:&str) -> EpubResult<String> {
     // manifest 内 item
     if let Some(cover) = &book.cover {
         xml.create_element("item")
-            .with_attribute(("href", cover.file_name.as_str()))
+            .with_attribute(("href", cover.file_name()))
             .with_attribute(("id", "cover-img"))
             .with_attribute((
                 "media-type",
-                get_media_type(cover.file_name.as_str()).as_str(),
+                get_media_type(cover.file_name()).as_str(),
             ))
             .with_attribute(("properties", "cover-image"))
             .write_empty()?;
@@ -379,7 +381,7 @@ pub(crate) fn do_to_opf(book: &EpubBook,generator:&str) -> EpubResult<String> {
 
     for (index, ele) in book.chapters.iter().enumerate() {
         xml.create_element("item")
-            .with_attribute(("href", ele.file_name.as_str()))
+            .with_attribute(("href", ele.file_name()))
             .with_attribute(("id", format!("chap_{}", index).as_str()))
             .with_attribute(("media-type", "application/xhtml+xml"))
             .write_empty()?;
@@ -387,11 +389,11 @@ pub(crate) fn do_to_opf(book: &EpubBook,generator:&str) -> EpubResult<String> {
 
     for (index, ele) in book.assets.iter().enumerate() {
         xml.create_element("item")
-            .with_attribute(("href", ele.file_name.as_str()))
+            .with_attribute(("href", ele.file_name()))
             .with_attribute(("id", format!("assets_{}", index).as_str()))
             .with_attribute((
                 "media-type",
-                get_media_type(ele.file_name.as_str()).as_str(),
+                get_media_type(ele.file_name()).as_str(),
             ))
             .write_empty()?;
     }
@@ -457,7 +459,7 @@ mod test {
     fn test_to_html() {
         let mut t = EpubHtml::default();
         t.title = String::from("title");
-        t.data = Some(String::from("ok").as_bytes().to_vec());
+        t.set_data(String::from("ok").as_bytes().to_vec());
         t.set_css("#id{width:10%}");
         let link = EpubLink {
             href: String::from("href"),

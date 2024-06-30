@@ -10,14 +10,14 @@ pub trait EpubItem {
     ///
     /// 注意，如果是 EPUB 目录下的文件，返回的时候不会带有EPUB路径
     ///
-    fn get_file_name(&self) -> &str;
+    fn file_name(&self) -> &str;
 
     ///
     /// 设置文件路径
     ///
     fn set_file_name(&mut self, value: &str);
 
-    fn get_id(&self) -> &str;
+    fn id(&self) -> &str;
     fn set_id(&mut self, id: &str);
 
     ///
@@ -27,15 +27,18 @@ pub trait EpubItem {
     /// 是代表该文件不会出现在opf中
     ///
     fn is_manifest(&self) -> bool {
-        let name = self.get_file_name();
+        let name = self.file_name();
         if name == "mimetype" {
             return true;
         }
         false
     }
 
-    fn set_data(&mut self, data: &mut Vec<u8>);
-    fn get_data(&self) -> Option<&[u8]>;
+    fn set_data(&mut self, data: Vec<u8>);
+    /// 
+    /// 返回数据
+    /// 
+    fn data(&self) -> Option<&[u8]>;
 }
 
 pub static EPUB: &str = "EPUB/";

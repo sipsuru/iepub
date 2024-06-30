@@ -1,12 +1,12 @@
-use std::str::FromStr;
 use std::collections::HashMap;
+use std::str::FromStr;
 
-use common::LinkRel;
+use common::{EpubItem, LinkRel};
 use derive::epub_base;
 use html::{to_html, to_nav_html, to_opf, to_toc_xml};
 
-mod html;
 pub mod builder;
+mod html;
 pub mod zip_writer;
 
 shadow_rs::shadow!(build);
@@ -30,6 +30,7 @@ pub struct EpubHtml {
     title: String,
     /// 自定义的css，会被添加到link下
     css: Option<String>,
+
 }
 
 impl EpubHtml {
@@ -38,15 +39,24 @@ impl EpubHtml {
         self.title.push_str(title);
     }
 
-    pub fn get_title(&self) -> &str {
+    pub fn with_title(mut self, title: &str) -> Self {
+        self.set_title(title);
+
+        self
+    }
+
+    pub fn title(&self) -> &str {
         &self.title
-    } 
+    }
 
     pub fn set_css(&mut self, css: &str) {
         self.css = Some(String::from(css));
     }
-
-    pub fn get_css(&self) -> Option<&str> {
+    pub fn with_css(mut self, css: &str) -> Self {
+        self.set_css(css);
+        self
+    }
+    pub fn css(&self) -> Option<&str> {
         self.css.as_deref()
     }
 
@@ -88,13 +98,9 @@ impl EpubHtml {
 ///
 #[epub_base]
 #[derive(Debug, Default)]
-pub struct EpubAssets {
-    
-}
+pub struct EpubAssets {}
 
-impl EpubAssets{
-
-}
+impl EpubAssets {}
 
 ///
 /// 目录信息
@@ -110,10 +116,16 @@ pub struct EpubNav {
     child: Vec<EpubNav>,
 }
 
-impl EpubNav{
-    pub fn title(mut self,title:&str)->Self{
+impl EpubNav {
+    pub fn title(&self) -> &str {
+        &self.title
+    }
+    pub fn set_title(&mut self, title: &str) {
         self.title.clear();
         self.title.push_str(title);
+    }
+    pub fn with_title(mut self, title: &str) -> Self {
+        self.set_title(title);
         self
     }
 }
@@ -147,17 +159,17 @@ impl EpubMetaData {
         self
     }
 
-    pub fn get_text(&self) -> Option<&str> {
+    pub fn text(&self) -> Option<&str> {
         self.text.as_deref()
     }
 
-    pub fn get_attrs(&self) -> std::collections::hash_map::Iter<'_, String, String> {
+    pub fn attrs(&self) -> std::collections::hash_map::Iter<'_, String, String> {
         self.attr.iter()
     }
 }
 
 #[derive(Debug, Default)]
-pub struct EpubBookInfo {
+struct EpubBookInfo {
     /// 书名
     title: String,
 
@@ -202,55 +214,46 @@ pub struct EpubBook {
     cover: Option<EpubAssets>,
 }
 
+impl EpubBook {
+    derive::option_string_method!(info,creator);
+    derive::option_string_method!(info,description);
+    derive::option_string_method!(info,contributor);
+    derive::option_string_method!(info,date);
+    derive::option_string_method!(info,format);
+    derive::option_string_method!(info,publisher);
+    derive::option_string_method!(info,subject);
+    // /
+    // / 设置epub最后修改时间
+    // /
+    // / # Examples
+    // /
+    // / ```
+    // / let mut epub = EpubBook::default();
+    // / epub.set_last_modify("2024-06-28T08:07:07UTC");
+    // / ```
+    // /
+    derive::option_string_method!(last_modify);
+}
 
+// 元数据
 impl EpubBook {
     pub fn set_title(&mut self, title: &str) {
         self.info.title.clear();
         self.info.title.push_str(title);
     }
-    pub fn get_title(&self) -> &str {
+    pub fn with_title(mut self, title: &str) -> Self {
+        self.set_title(title);
+        self
+    }
+    pub fn title(&self) -> &str {
         self.info.title.as_str()
     }
-    pub fn get_identifier(&self) -> &str {
+    pub fn identifier(&self) -> &str {
         self.info.identifier.as_str()
     }
     pub fn set_identifier(&mut self, identifier: &str) {
         self.info.identifier.clear();
         self.info.identifier.push_str(identifier);
-    }
-
-    derive::epub_method_option!(creator);
-    derive::epub_method_option!(description);
-    derive::epub_method_option!(contributor);
-    derive::epub_method_option!(date);
-    derive::epub_method_option!(format);
-    derive::epub_method_option!(publisher);
-    derive::epub_method_option!(subject);
-}
-
-// 元数据
-impl EpubBook {
-    ///
-    /// 设置epub最后修改时间
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut epub = EpubBook::default();
-    /// epub.set_last_modify("2024-06-28T08:07:07UTC");
-    /// ```
-    ///
-    pub fn set_last_modify(&mut self, value: &str) {
-        if let Some(t) = &mut self.last_modify {
-            t.clear();
-            t.push_str(value);
-        } else {
-            self.last_modify = Some(String::from(value));
-        }
-    }
-
-    pub fn get_last_modify(&self) -> Option<&str> {
-        self.last_modify.as_deref()
     }
 
     ///
@@ -259,6 +262,7 @@ impl EpubBook {
     /// # Examples
     ///
     /// ```
+    /// use iepub::EpubBook;
     /// let mut epub = EpubBook::default();
     /// epub.add_meta(EpubMetaData::default().push_attr("k", "v").set_text("text"));
     /// ```
@@ -266,8 +270,12 @@ impl EpubBook {
     pub fn add_meta(&mut self, meta: EpubMetaData) {
         self.meta.push(meta);
     }
-    pub fn get_meta(&self) -> &[EpubMetaData] {
+    pub fn meta(&self) -> &[EpubMetaData] {
         &self.meta
+    }
+
+    pub fn set_cover(&mut self, cover: EpubAssets) {
+        self.cover = Some(cover);
     }
 }
 
@@ -276,16 +284,14 @@ type EpubResult<T> = Result<T, EpubError>;
 ///
 /// 空结构，
 #[derive(Default)]
-pub struct EpubWriterEmpty{
-
-}
+pub struct EpubWriterEmpty {}
 
 ///
 /// epub输出实现，可通过实现该trait从而自定义输出方案。
-/// 
+///
 /// 具体实现应该是写入到zip文件
-/// 
-pub trait EpubWriter{
+///
+pub trait EpubWriter {
     /// 新建
     /// file 输出的epub文件路径
     ///
@@ -302,7 +308,6 @@ pub trait EpubWriter{
 
 #[derive(Debug)]
 pub enum EpubError {
-
     /// io 错误
     Io(std::io::Error),
     /// invalid Zip archive: {0}
@@ -316,21 +321,16 @@ pub enum EpubError {
 
     /// The password provided is incorrect
     InvalidPassword,
-    
+
     Utf8(std::string::FromUtf8Error),
 
     Xml(quick_xml::Error),
     Unknown,
 }
 
-// impl EpubError {
-//     fn new() -> Self {
-//         EpubError
-//     }
-// }
 impl std::fmt::Display for EpubError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "epub error")
+        write!(f, "{:?}",self)
     }
 }
 
@@ -351,7 +351,14 @@ impl EpubBook {
         )?;
         writer.write("mimetype", "application/epub+zip".as_bytes())?;
 
-        writer.write(common::OPF, to_opf(self,format!("{}-{}", crate::build::PROJECT_NAME,  crate::build::VERSION).as_str()).as_bytes())?;
+        writer.write(
+            common::OPF,
+            to_opf(
+                self,
+                format!("{}-{}", crate::build::PROJECT_NAME, crate::build::VERSION).as_str(),
+            )
+            .as_bytes(),
+        )?;
 
         Ok(())
     }
@@ -360,12 +367,12 @@ impl EpubBook {
     fn write_assets(&self, writer: &mut impl EpubWriter) -> EpubResult<()> {
         let m = &self.assets;
         for ele in m {
-            if ele.data.is_none() {
+            if ele.data().is_none() {
                 continue;
             }
             writer.write(
-                format!("{}{}", common::EPUB, ele.file_name.as_str()).as_str(),
-                ele.data.as_ref().unwrap(),
+                format!("{}{}", common::EPUB, ele.file_name()).as_str(),
+                ele.data().unwrap(),
             )?;
         }
         Ok(())
@@ -375,27 +382,17 @@ impl EpubBook {
     fn write_chapters(&self, writer: &mut impl EpubWriter) -> EpubResult<()> {
         let chap = &self.chapters;
         for ele in chap {
-            if ele.data.is_none() {
+            if ele.data().is_none() {
                 continue;
             }
 
             let html = to_html(ele);
 
             writer.write(
-                format!("{}{}", common::EPUB, ele.file_name.as_str()).as_str(),
+                format!("{}{}", common::EPUB, ele.file_name()).as_str(),
                 html.as_bytes(),
             )?;
 
-            // let mut vue:Vec<u8> = Vec::new();
-            // let mut xml = quick_xml::Writer::new(std::io::Cursor::new(vue));
-            // use quick_xml::events::*;
-
-            // let mut html = BytesStart::new("html");
-            // html.extend_attributes(Attribute::)
-
-            // xml.write_event(Event::Start(html))?;
-
-            // xml.write_event()
         }
 
         Ok(())
@@ -403,14 +400,8 @@ impl EpubBook {
     /// 写入目录
     fn write_nav(&self, writer: &mut impl EpubWriter) -> EpubResult<()> {
         // 目录包括两部分，一是自定义的用于书本导航的html，二是epub规范里的toc.ncx文件
-        writer.write(
-            common::NAV,
-            to_nav_html(self.get_title(), &self.nav).as_bytes(),
-        )?;
-        writer.write(
-            common::TOC,
-            to_toc_xml(self.get_title(), &self.nav).as_bytes(),
-        )?;
+        writer.write(common::NAV, to_nav_html(self.title(), &self.nav).as_bytes())?;
+        writer.write(common::TOC, to_toc_xml(self.title(), &self.nav).as_bytes())?;
 
         Ok(())
     }
@@ -420,16 +411,16 @@ impl EpubBook {
     ///
     /// 拷贝资源文件以及生成对应的xhtml文件
     ///
-    fn write_cover(&self, writer: &mut impl EpubWriter) ->EpubResult<()> {
+    fn write_cover(&self, writer: &mut impl EpubWriter) -> EpubResult<()> {
         if let Some(cover) = &self.cover {
             writer.write(
-                format!("{}{}", common::EPUB, cover.file_name.as_str()).as_str(),
-                cover.data.as_ref().unwrap(),
+                format!("{}{}", common::EPUB, cover.file_name()).as_str(),
+                cover.data().as_ref().unwrap(),
             )?;
 
             let mut html = EpubHtml::default();
-            html.data = Some(
-                format!("<img src=\"{}\" alt=\"Cover\"/>", cover.file_name)
+            html.set_data(
+                format!("<img src=\"{}\" alt=\"Cover\"/>", cover.file_name())
                     .as_bytes()
                     .to_vec(),
             );
@@ -439,11 +430,11 @@ impl EpubBook {
         Ok(())
     }
     ///
-    /// 
+    ///
     /// 写入到指定文件
-    /// 
+    ///
     /// [file] 文件路径，一般以.epub结尾
-    /// 
+    ///
     pub fn write(&self, file: &str) -> EpubResult<()> {
         let mut writer = zip_writer::ZipFileWriter::new(file)?;
         self.write_with_writer(&mut writer)
@@ -451,22 +442,21 @@ impl EpubBook {
 
     ///
     /// 使用自定义输出方案
-    /// 
-    /// # Examples 
-    /// 
+    ///
+    /// # Examples
+    ///
     /// 1. 写入内存
-    /// 
+    ///
     /// ```rust
     /// let mut writer = zip_writer::ZipMemoeryWriter::new("无用").unwrap();
-    /// 
+    ///
     /// let mut book = EpubBook::default();
     /// book.write_with_writer(&mut writer);
-    /// 
+    ///
     /// ```
-    /// 
-    /// 
-    pub fn write_with_writer(&self,writer:&mut impl EpubWriter) -> EpubResult<()>{
-        
+    ///
+    ///
+    pub fn write_with_writer(&self, writer: &mut impl EpubWriter) -> EpubResult<()> {
         self.write_base(writer)?;
         self.write_assets(writer)?;
         self.write_chapters(writer)?;
@@ -475,7 +465,6 @@ impl EpubBook {
 
         Ok(())
     }
-
 }
 
 #[cfg(test)]
@@ -496,24 +485,24 @@ mod tests {
 
         let mut css = EpubAssets::default();
         css.set_file_name("style/1.css");
-        css.data = Some(String::from("ok").as_bytes().to_vec());
+        css.set_data(String::from("ok").as_bytes().to_vec());
 
         assets.push(css);
 
         // 添加目录，注意目录和章节并无直接关联关系，需要自行维护保证导航到正确位置
         let mut n = EpubNav::default();
-        n.title = String::from("作品说明");
+        n.set_title("作品说明");
         n.set_file_name("chaps/0.xhtml");
 
         let mut n1 = EpubNav::default();
-        n1.title = String::from("第一卷");
+        n1.set_title("第一卷");
 
         let mut n2 = EpubNav::default();
-        n2.title = String::from("第一卷 第一章");
+        n2.set_title("第一卷 第一章");
         n2.set_file_name("chaps/1.xhtml");
 
         let mut n3 = EpubNav::default();
-        n3.title = String::from("第一卷 第二章");
+        n3.set_title("第一卷 第二章");
         n3.set_file_name("chaps/2.xhtml");
         n1.child.push(n2);
 
@@ -522,22 +511,22 @@ mod tests {
         // 添加章节
         let mut chap = EpubHtml::default();
         chap.set_file_name("chaps/0.xhtml");
-        chap.title.push_str("标题1");
+        chap.set_title("标题1");
         // 章节的数据并不需要填入完整的html，只需要片段即可，输出时会结合其他数据拼接成完整的html
-        chap.data = Some(String::from("<p>章节内容html片段</p>").as_bytes().to_vec());
+        chap.set_data(String::from("<p>章节内容html片段</p>").as_bytes().to_vec());
 
         book.chapters.push(chap);
 
         chap = EpubHtml::default();
         chap.set_file_name("chaps/1.xhtml");
-        chap.title.push_str("标题2");
-        chap.data = Some(String::from("第一卷 第一章content").as_bytes().to_vec());
+        chap.set_title("标题2");
+        chap.set_data(String::from("第一卷 第一章content").as_bytes().to_vec());
 
         book.chapters.push(chap);
         chap = EpubHtml::default();
         chap.set_file_name("chaps/2.xhtml");
-        chap.title.push_str("标题2");
-        chap.data = Some(String::from("第一卷 第二章content").as_bytes().to_vec());
+        chap.set_title("标题2");
+        chap.set_data(String::from("第一卷 第二章content").as_bytes().to_vec());
 
         book.chapters.push(chap);
 
@@ -556,7 +545,7 @@ mod tests {
         let mut data: Vec<u8> = Vec::new();
         cf.read_to_end(&mut data).unwrap();
 
-        cover.data = Some(data);
+        cover.set_data(data);
 
         book.cover = Some(cover);
 

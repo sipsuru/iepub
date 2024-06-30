@@ -1,6 +1,8 @@
 use common::EpubItem;
 
-use crate::{zip_writer, EpubAssets, EpubBook, EpubHtml, EpubMetaData, EpubNav, EpubResult, EpubWriter};
+use crate::{
+    zip_writer, EpubAssets, EpubBook, EpubHtml, EpubMetaData, EpubNav, EpubResult, EpubWriter,
+};
 
 ///
 /// 简化epub构建
@@ -24,6 +26,49 @@ impl EpubBuilder {
         }
     }
 
+    pub fn with_title(mut self, title: &str) -> Self {
+        self.book.set_title(title);
+        self
+    }
+
+    pub fn with_identifier(mut self, identifier: &str) -> Self {
+        self.book.set_identifier(identifier);
+        self
+    }
+    pub fn with_creator(mut self, creator: &str) -> Self {
+        self.book.set_creator(creator);
+        self
+    }
+    pub fn with_description(mut self, description: &str) -> Self {
+        self.book.set_description(description);
+        self
+    }
+    pub fn with_contributor(mut self, contributor: &str) -> Self {
+        self.book.set_contributor(contributor);
+        self
+    }
+    pub fn with_date(mut self, date: &str) -> Self {
+        self.book.set_date(date);
+        self
+    }
+    pub fn with_format(mut self, format: &str) -> Self {
+        self.book.set_format(format);
+        self
+    }
+    pub fn with_publisher(mut self, publisher: &str) -> Self {
+        self.book.set_publisher(publisher);
+        self
+    }
+    pub fn with_subject(mut self, subject: &str) -> Self {
+        self.book.set_subject(subject);
+        self
+    }
+
+    pub fn with_last_modify(mut self, last_modify: &str) -> Self {
+        self.book.set_last_modify(last_modify);
+        self
+    }
+
     pub fn custome_nav(mut self, value: bool) -> Self {
         self.custome_nav = value;
         self
@@ -43,10 +88,12 @@ impl EpubBuilder {
     ///
     /// 添加资源文件
     ///
-    pub fn assets(mut self, file_name: &str, data: Vec<u8>) -> Self {
-        self.book
-            .assets
-            .push(EpubAssets::default().file_name(file_name).data(data));
+    pub fn add_assets(mut self, file_name: &str, data: Vec<u8>) -> Self {
+        self.book.assets.push(
+            EpubAssets::default()
+                .with_file_name(file_name)
+                .with_data(data),
+        );
         self
     }
 
@@ -56,8 +103,12 @@ impl EpubBuilder {
     /// [file_name] epub中的文件名，不是本地文件名
     /// [data] 数据
     ///
-    pub fn conver(mut self, file_name: &str, data: Vec<u8>) -> Self {
-        self.book.cover = Some(EpubAssets::default().file_name(file_name).data(data));
+    pub fn cover(mut self, file_name: &str, data: Vec<u8>) -> Self {
+        self.book.cover = Some(
+            EpubAssets::default()
+                .with_file_name(file_name)
+                .with_data(data),
+        );
 
         self
     }
@@ -92,10 +143,18 @@ impl EpubBuilder {
             for (index, ele) in self.book.chapters.iter().enumerate() {
                 self.book.nav.push(
                     EpubNav::default()
-                        .title(ele.get_title())
-                        .file_name(ele.get_file_name()),
+                        .with_title(ele.title())
+                        .with_file_name(ele.file_name()),
                 );
             }
+        }
+    }
+
+    fn gen_last_modify(&mut self) {
+        if self.book.last_modify().is_none() {
+            self.book.set_last_modify(
+                format!("{}", chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%Z")).as_str(),
+            );
         }
     }
 
@@ -113,5 +172,27 @@ impl EpubBuilder {
         let mut writer = zip_writer::ZipMemoeryWriter::new("")?;
 
         self.book.write_with_writer(&mut writer)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::EpubHtml;
+
+    use super::EpubBuilder;
+
+    #[test]
+    fn test() {
+        EpubBuilder::new()
+            .add_chapter(
+                EpubHtml::default()
+                    .with_file_name("0.xml")
+                    .with_data(format!("<p>锻炼</p>").as_bytes().to_vec()),
+            )
+            .add_assets("1.css", format!("p{{color:red}}").as_bytes().to_vec())
+            .metadata("s", "d")
+            .metadata("h", "m")
+            .file("target/build.epub")
+            .unwrap();
     }
 }

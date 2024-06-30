@@ -1,6 +1,6 @@
 use std::{fs::File, io::Write};
 
-use crate::{EpubError, EpubWriter};
+use crate::{EpubError, EpubResult, EpubWriter};
 
 impl From<zip::result::ZipError> for EpubError {
     fn from(value: zip::result::ZipError) -> Self {
@@ -55,7 +55,7 @@ impl EpubWriter for ZipFileWriter {
 /// 写入到内存
 /// 
 pub struct ZipMemoeryWriter {
-    inner: zip::ZipWriter<std::io::Cursor<Vec<u8>>> 
+    inner: zip::ZipWriter<std::io::Cursor<Vec<u8>>>,
 }
 
 
@@ -63,8 +63,9 @@ impl EpubWriter for ZipMemoeryWriter {
     fn new(file: &str) -> crate::EpubResult<Self>
     where
         Self: Sized {
-        let u :Vec<u8> = Vec::new();
-        Ok(ZipMemoeryWriter{inner:zip::ZipWriter::new(std::io::Cursor::new(u))})
+        let mut u :Vec<u8> = Vec::new();
+        let c = std::io::Cursor::new( u);
+        Ok(ZipMemoeryWriter{inner:zip::ZipWriter::new(c)})
     }
 
     fn write(&mut self, file: &str, data: &[u8]) -> crate::EpubResult<()> {
@@ -75,4 +76,19 @@ impl EpubWriter for ZipMemoeryWriter {
         self.inner.write_all(data)?;
         Ok(())
     }
+}
+
+impl ZipMemoeryWriter {
+
+
+    fn data(self)->EpubResult<Vec<u8>>{
+
+        let mut w = self.inner.finish()?;
+
+        let mut res = Vec::new();
+        res.append(w.get_mut());
+
+        Ok(res)
+    }
+
 }

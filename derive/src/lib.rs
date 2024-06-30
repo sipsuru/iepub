@@ -3,35 +3,62 @@ extern crate proc_macro;
 use std::str::FromStr;
 
 use proc_macro::TokenStream;
-use  syn::{parse_macro_input, DeriveInput};
 use quote::{quote, ToTokens};
+use syn::{parse_macro_input, DeriveInput};
 
+///
+///
+/// 对于Option<String>类型的结构体成员，生成相关方法，支持嵌套
+///
+/// # Examples:
+///
+/// ```rust
+/// /// 访问成员 self.info.k
+/// option_string_method!(info,k)
+/// /// 访问成员 self.k
+/// option_string_method!(k)
+/// ```
+///
 #[proc_macro]
-pub fn epub_method_option(input:TokenStream)->TokenStream{
+pub fn option_string_method(input: TokenStream) -> TokenStream {
+    let s = input.to_string();
+    let v: Vec<&str> = s.split(',').collect();
 
-
-    let m = r#"pub fn set_{input}(&mut self, {input}: &str) {
-        if let Some( c) = &mut self.info.{input} {
+    let m = r#"pub fn set_{method}(&mut self, {method}: &str) {
+        if let Some( c) = &mut self.{prefix}{method} {
             c.clear();
-            c.push_str({input});
+            c.push_str({method});
         } else {
-            self.info.{input} = Some(String::from({input}));
+            self.{prefix}{method} = Some(String::from({method}));
         }
     }
-
-    pub fn get_{input}(&self) -> Option<&str> {
-        self.info.{input}.as_ref().map(|x|x.as_str())
+    pub fn with_{method}(mut self, {method}: &str) ->Self {
+        self.set_{method}({method});
+        self
+    }
+    pub fn {method}(&self) -> Option<&str> {
+        self.{prefix}{method}.as_ref().map(|x|x.as_str())
     }"#;
-
-    
-    m.replace("{input}", input.to_string().as_str()).parse().unwrap()
+    if v.len() == 2 {
+        let r = m
+            .replace("{prefix}", format!("{}.", v[0].trim()).as_str().trim())
+            .replace("{method}", v[1].trim());
+        return r.parse().unwrap();
+    } else if v.len() == 1 {
+        return m
+            .replace("{prefix}", "")
+            .replace("{method}", v[0].trim())
+            .parse()
+            .unwrap();
+    }
+    "".parse().unwrap()
 }
 
-
 #[proc_macro_attribute]
-pub fn epub_base(_attr: TokenStream, input:TokenStream)->TokenStream{
-
-    let DeriveInput { ident, data, attrs, .. } = parse_macro_input!(input);
+pub fn epub_base(_attr: TokenStream, input: TokenStream) -> TokenStream {
+    let DeriveInput {
+        ident, data, attrs, ..
+    } = parse_macro_input!(input);
 
     // attrs.get(0).
     let mut ann = String::new();
@@ -40,26 +67,28 @@ pub fn epub_base(_attr: TokenStream, input:TokenStream)->TokenStream{
         if ele.path().is_ident("derive") {
             has_derive = true;
             ann.push_str("#[derive(derive::EpubBaseTrail");
-            let nested = ele.parse_args_with(syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated).unwrap();
-             for meta in nested {
-                 match meta {
-                    syn::Meta::Path(p)=>{
+            let nested = ele
+                .parse_args_with(
+                    syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated,
+                )
+                .unwrap();
+            for meta in nested {
+                match meta {
+                    syn::Meta::Path(p) => {
                         if let Some(i) = p.get_ident() {
                             ann.push_str(",");
                             ann.push_str(i.to_string().as_str());
                         }
-                       
                     }
-                     // #[repr(C)]
-   
-                     _ => {
+                    // #[repr(C)]
+                    _ => {
                         panic!("unrecognized ");
                         //  return Err(Error::new_spanned(meta, "unrecognized repr"));
-                     }
-                 }
-             }
-             ann.push_str(")]");
-        }else  {
+                    }
+                }
+            }
+            ann.push_str(")]");
+        } else {
             let mut temp = proc_macro2::TokenStream::new();
             ele.to_tokens(&mut temp);
             ann.push_str(temp.to_string().as_str());
@@ -71,8 +100,6 @@ pub fn epub_base(_attr: TokenStream, input:TokenStream)->TokenStream{
 
     let expanded = match data {
         syn::Data::Struct(data_struct) => {
-
-
             let s = &data_struct.fields;
             let fields = match s {
                 syn::Fields::Named(fields_named) => fields_named.named.iter().map(|field| {
@@ -85,50 +112,41 @@ pub fn epub_base(_attr: TokenStream, input:TokenStream)->TokenStream{
             let m = quote! {
                 pub struct #ident {
                     id:String,
-                    file_name:String,
+                    _file_name:String,
                     media_type:String,
                     /// 数据
-                    data: Option<Vec<u8>>,
+                    _data: Option<Vec<u8>>,
                     #(#fields),*// 结尾必须有个逗号，否则虽然生成的字符串语法正确，但是还是会报错
                 }
             };
-            
+
             // 直接把 ann 写到 quote! 宏中会给 ann 用双引号包裹
-            let out =format!("{} {}",ann,m.to_string());
+            let out = format!("{} {}", ann, m.to_string());
             TokenStream::from_str(out.as_str()).unwrap()
-
-
-        },
+        }
         _ => panic!("derive(EpubBaseTrail) only supports structs"),
     };
- 
+
     TokenStream::from(expanded)
-
-
 }
 
 #[proc_macro_derive(EpubBaseTrail)]
-pub fn deriver_epub_base(input:TokenStream) ->TokenStream{
-
-
-
+pub fn deriver_epub_base(input: TokenStream) -> TokenStream {
     let DeriveInput { ident, data, .. } = parse_macro_input!(input);
- 
+
     let expanded = match data {
         syn::Data::Struct(_) => {
-
-
             quote! {
                 impl common::EpubItem for #ident {
-                    fn get_file_name(&self)->&str{
-                        self.file_name.as_str()
+                    fn file_name(&self)->&str{
+                        self._file_name.as_str()
                     }
                     fn set_file_name(&mut self,value: &str){
-                        self.file_name.clear();
-                        self.file_name.push_str(value);
+                        self._file_name.clear();
+                        self._file_name.push_str(value);
                     }
 
-                    fn get_id(&self)->&str{
+                    fn id(&self)->&str{
                         self.id.as_str()
                     }
                     fn set_id(&mut self,id:&str){
@@ -136,41 +154,37 @@ pub fn deriver_epub_base(input:TokenStream) ->TokenStream{
                         self.id.push_str(id);
                     }
 
-                    fn set_data(&mut self, data: &mut Vec<u8>) {
-                        if let Some(d) = &mut self.data {
-                            d.clear();
-                            d.append(data);
-                        }else{
-                            let mut v= Vec::new();
-                            v.append(data);
-                            self.data = Some(v);
-                        }
-                
-                        todo!()
+                    fn set_data(&mut self, data: Vec<u8>) {
+                        // if let Some(d) = &mut self._data {
+                        //     d.clear();
+                        //     d.append(data);
+                        // }else{
+                            self._data = Some(data);
+                        // }
                     }
-                    fn get_data(&self) -> Option<&[u8]>{
-                       self.data.as_ref().map(|f|f.as_slice())
+                    fn data(&self) -> Option<&[u8]>{
+                       self._data.as_ref().map(|f|f.as_slice())
                     }
-                    
+
 
                 }
 
                 impl #ident {
-                    pub fn file_name(mut self,value:&str)->Self{
+                    pub fn with_file_name(mut self,value:&str)->Self{
                         common::EpubItem::set_file_name(&mut self, value);
                         self
                     }
-                    
-                    pub fn data(mut self, mut value:Vec<u8>)->Self{
-                        common::EpubItem::set_data(&mut self,&mut value);
+
+                    pub fn with_data(mut self, value:Vec<u8>)->Self{
+                        common::EpubItem::set_data(&mut self,value);
                         self
                     }
                 }
             }
-        },
+        }
         _ => panic!("derive(EpubBaseTrail) only supports structs"),
     };
- 
+
+    println!("{}", expanded);
     TokenStream::from(expanded)
 }
-
