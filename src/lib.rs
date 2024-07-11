@@ -1,12 +1,16 @@
-use std::{collections::HashMap, slice::Iter};
+use std::cell::RefCell;
+use std::fmt::{Debug, Display};
+use std::rc::Rc;
 use std::str::FromStr;
+use std::{collections::HashMap, slice::Iter};
 
 use common::{EpubItem, LinkRel};
 use derive::epub_base;
-use html::{to_html, to_nav_html, to_opf, to_toc_xml};
+use html::{get_html_info, to_html, to_nav_html, to_opf, to_toc_xml};
 
 pub mod builder;
 mod html;
+pub mod reader;
 pub mod zip_writer;
 
 shadow_rs::shadow!(build);
@@ -22,7 +26,7 @@ pub struct EpubLink {
 }
 
 #[epub_base]
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct EpubHtml {
     pub lang: String,
     links: Option<Vec<EpubLink>>,
@@ -32,7 +36,64 @@ pub struct EpubHtml {
     css: Option<String>,
 }
 
+impl Debug for EpubHtml {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EpubHtml")
+            .field("id", &self.id)
+            .field("_file_name", &self._file_name)
+            .field("media_type", &self.media_type)
+            .field("_data", &self._data)
+            .field("lang", &self.lang)
+            .field("links", &self.links)
+            .field("title", &self.title)
+            .field("css", &self.css)
+            .finish()
+    }
+}
+
 impl EpubHtml {
+    fn data(&mut self) -> Option<&[u8]> {
+        let mut f = String::from(self._file_name.as_str());
+        println!(
+            "{} {} {}",
+            self._data.is_none(),
+            self.reader.is_some(),
+            f.is_empty()
+        );
+        if self._data.is_none() && self.reader.is_some() && !f.is_empty() {
+            // 可读
+            if !f.starts_with(common::EPUB) {
+                f = format!("{}{}", common::EPUB, f);
+            }
+
+            let s = self.reader.as_mut().unwrap();
+
+            let d = (*s.borrow_mut()).read_string(f.as_str());
+            // let d = self.reader.as_mut().unwrap().read_string(f.as_str());
+            if let Ok(v) = d {
+                let _ = get_html_info(v.as_str(), self);
+                // self.set_data(v);
+            }
+        }
+        self._data.as_ref().map(|f| f.as_slice())
+    }
+
+    ///
+    /// 获取数据，当处于读模式时自动读取epub文件内容
+    ///
+    fn read_data(&mut self) -> Option<&[u8]> {
+        let f = self._file_name.as_str();
+        if self._data.is_none() && self.reader.is_some() && !f.is_empty() {
+            // 可读
+            // let d = self.reader.as_mut().unwrap().read_file(f);
+            // if let Ok(v) = d {
+            //     self.set_data(v);
+            // }
+        }
+
+        self._data.as_ref().map(|f| f.as_slice())
+    }
+
     pub fn set_title(&mut self, title: &str) {
         self.title.clear();
         self.title.push_str(title);
@@ -96,10 +157,51 @@ impl EpubHtml {
 /// 例如css，字体，图片等
 ///
 #[epub_base]
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct EpubAssets {}
 
-impl EpubAssets {}
+impl EpubAssets {
+    fn data(&mut self) -> Option<&[u8]> {
+        let mut f = String::from(self._file_name.as_str());
+        if self._data.is_none() && self.reader.is_some() && !f.is_empty() {
+            if !f.starts_with(common::EPUB) {
+                f = format!("{}{}", common::EPUB, f);
+            }
+            // 可读
+            let s = self.reader.as_mut().unwrap();
+
+            let d = (*s.borrow_mut()).read_file(f.as_str());
+            // let d = self.reader.as_mut().unwrap().read_file(f);
+            if let Ok(v) = d {
+                self.set_data(v);
+            }
+        }
+        self._data.as_ref().map(|f| f.as_slice())
+    }
+}
+
+impl Debug for EpubAssets {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EpubAssets")
+            .field("id", &self.id)
+            .field("_file_name", &self._file_name)
+            .field("media_type", &self.media_type)
+            .field("_data", &self._data)
+            .finish()
+    }
+}
+
+impl Clone for EpubAssets {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id.clone(),
+            _file_name: self._file_name.clone(),
+            media_type: self.media_type.clone(),
+            _data: self._data.clone(),
+            reader: None,
+        }
+    }
+}
 
 ///
 /// 目录信息
@@ -107,12 +209,39 @@ impl EpubAssets {}
 /// 支持嵌套
 ///
 #[epub_base]
-#[derive(Debug, Default,Clone)]
+#[derive(Default)]
 pub struct EpubNav {
     /// 章节目录
     /// 如果需要序号需要调用方自行处理
     title: String,
     child: Vec<EpubNav>,
+}
+
+impl Debug for EpubNav {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EpubNav")
+            .field("id", &self.id)
+            .field("_file_name", &self._file_name)
+            .field("media_type", &self.media_type)
+            .field("_data", &self._data)
+            .field("title", &self.title)
+            .field("child", &self.child)
+            .finish()
+    }
+}
+
+impl Clone for EpubNav {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id.clone(),
+            _file_name: self._file_name.clone(),
+            media_type: self.media_type.clone(),
+            _data: self._data.clone(),
+            reader: None,
+            title: self.title.clone(),
+            child: self.child.clone(),
+        }
+    }
 }
 
 impl EpubNav {
@@ -150,19 +279,25 @@ pub struct EpubMetaData {
 }
 
 impl EpubMetaData {
-    pub fn push_attr(mut self, key: &str, value: &str) -> Self {
+    pub fn with_attr(mut self, key: &str, value: &str) -> Self {
+        self.push_attr(key, value);
+        self
+    }
+    pub fn push_attr(&mut self, key: &str, value: &str) {
         self.attr.insert(String::from(key), String::from(value));
+    }
+    pub fn with_text(mut self, text: &str) -> Self {
+        self.set_text(text);
         self
     }
 
-    pub fn set_text(mut self, text: &str) -> Self {
+    pub fn set_text(&mut self, text: &str) {
         if let Some(t) = &mut self.text {
             t.clear();
             t.push_str(text);
         } else {
             self.text = Some(String::from(text));
         }
-        self
     }
 
     pub fn text(&self) -> Option<&str> {
@@ -202,7 +337,7 @@ struct EpubBookInfo {
 }
 
 /// 书本
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct EpubBook {
     /// 上次修改时间
     last_modify: Option<String>,
@@ -218,6 +353,23 @@ pub struct EpubBook {
     chapters: Vec<EpubHtml>,
     /// 封面
     cover: Option<EpubAssets>,
+    /// 处于读模式
+    reader: Option<Rc<RefCell<Box<dyn EpubReaderTrait>>>>,
+}
+
+impl Display for EpubBook {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f,"last_modify={:?},info={:?},meta={:?},nav={:?},assets={:?},chapters={:?},cover={:?},is in read mode={}",
+        self.last_modify,
+        self.info,
+        self.meta,
+        self.nav,
+        self.assets,
+        self.chapters,
+        self.cover,
+        self.reader.is_some()
+    )
+    }
 }
 
 impl EpubBook {
@@ -266,7 +418,7 @@ impl EpubBook {
     /// ```
     /// use iepub::EpubBook;
     /// let mut epub = EpubBook::default();
-    /// epub.add_meta(EpubMetaData::default().push_attr("k", "v").set_text("text"));
+    /// epub.add_meta(EpubMetaData::default().with_attr("k", "v").with_text("text"));
     /// ```
     ///
     pub fn add_meta(&mut self, meta: EpubMetaData) {
@@ -275,6 +427,15 @@ impl EpubBook {
     pub fn meta(&self) -> &[EpubMetaData] {
         &self.meta
     }
+
+    pub(crate) fn get_meta(&mut self, index: usize) -> Option<&mut EpubMetaData> {
+        self.meta.get_mut(index)
+    }
+
+    pub(crate) fn meta_len(&self) -> usize {
+        self.meta.len()
+    }
+
     ///
     /// 添加目录
     ///
@@ -283,17 +444,63 @@ impl EpubBook {
         self.nav.push(nav);
     }
 
-    pub fn add_assets(&mut self, assets: EpubAssets) {
+    pub fn add_assets(&mut self, mut assets: EpubAssets) {
+        if let Some(r) = &self.reader {
+            assets.reader = Some(Rc::clone(r));
+        }
         self.assets.push(assets);
     }
 
-    pub fn add_chapter(&mut self, chap: EpubHtml) {
+    ///
+    /// 查找章节
+    ///
+    /// [file_name] 不需要带有 EPUB 目录
+    ///
+    pub fn get_assets(&mut self, file_name: &str) -> Option<&mut EpubAssets> {
+        self.assets
+            .iter_mut()
+            .filter(|s| s.file_name() == file_name)
+            .next()
+            // .map(|f| {
+            //     if let Some(r) = &self.reader {
+            //         f.reader = Some(Rc::clone(r));
+            //     }
+            //     f
+            // })
+    }
+
+    pub fn assets(&mut self) -> std::slice::IterMut<EpubAssets> {
+        self.assets.iter_mut()
+    }
+
+    pub fn add_chapter(&mut self, mut chap: EpubHtml) {
+        if let Some(r) = &self.reader {
+            chap.reader = Some(Rc::clone(r));
+        }
         self.chapters.push(chap);
     }
 
-    #[inline]
-    pub fn chapters(&self) -> Iter<EpubHtml> {
-        self.chapters.iter()
+
+    pub fn chapters(&mut self) -> std::slice::IterMut<EpubHtml> {
+        self.chapters.iter_mut()
+    }
+
+    ///
+    /// 查找章节
+    ///
+    /// [file_name] 不需要带有 EPUB 目录
+    ///
+    pub fn get_chapter(&mut self, file_name: &str) -> Option<&mut EpubHtml> {
+        self.chapters
+            .iter_mut()
+            .filter(|s| s.file_name() == file_name)
+            .next()
+            // .map(|f| {
+            //     if let Some(r) = &self.reader {
+            //         f.reader = Some(Rc::clone(r));
+            //     }
+            //     f
+            // })
     }
 
     pub fn set_cover(&mut self, cover: EpubAssets) {
@@ -321,6 +528,19 @@ pub trait EpubWriter {
     /// data 要写入的数据
     ///
     fn write(&mut self, file: &str, data: &[u8]) -> EpubResult<()>;
+}
+
+pub(crate) trait EpubReaderTrait {
+    fn read(&mut self,book:&mut EpubBook) -> EpubResult<()>;
+    ///
+    /// file epub中的文件目录
+    ///
+    fn read_file(&mut self, file_name: &str) -> EpubResult<Vec<u8>>;
+
+    ///
+    /// file epub中的文件目录
+    ///
+    fn read_string(&mut self, file_name: &str) -> EpubResult<String>;
 }
 
 #[derive(Debug)]
@@ -372,7 +592,12 @@ impl EpubBook {
             common::OPF,
             to_opf(
                 self,
-                format!("{}-{}", crate::build::PROJECT_NAME, crate::build::VERSION).as_str(),
+                format!(
+                    "{}-{}",
+                    crate::build::PROJECT_NAME,
+                    crate::build::PKG_VERSION
+                )
+                .as_str(),
             )
             .as_bytes(),
         )?;
@@ -381,8 +606,8 @@ impl EpubBook {
     }
 
     /// 写入资源文件
-    fn write_assets(&self, writer: &mut impl EpubWriter) -> EpubResult<()> {
-        let m = &self.assets;
+    fn write_assets(&mut self, writer: &mut impl EpubWriter) -> EpubResult<()> {
+        let m = &mut self.assets;
         for ele in m {
             if ele.data().is_none() {
                 continue;
@@ -396,8 +621,8 @@ impl EpubBook {
     }
 
     /// 写入章节文件
-    fn write_chapters(&self, writer: &mut impl EpubWriter) -> EpubResult<()> {
-        let chap = &self.chapters;
+    fn write_chapters(&mut self, writer: &mut impl EpubWriter) -> EpubResult<()> {
+        let chap = &mut self.chapters;
         for ele in chap {
             if ele.data().is_none() {
                 continue;
@@ -427,8 +652,8 @@ impl EpubBook {
     ///
     /// 拷贝资源文件以及生成对应的xhtml文件
     ///
-    fn write_cover(&self, writer: &mut impl EpubWriter) -> EpubResult<()> {
-        if let Some(cover) = &self.cover {
+    fn write_cover(&mut self, writer: &mut impl EpubWriter) -> EpubResult<()> {
+        if let Some(cover) = &mut self.cover {
             writer.write(
                 format!("{}{}", common::EPUB, cover.file_name()).as_str(),
                 cover.data().as_ref().unwrap(),
@@ -441,7 +666,7 @@ impl EpubBook {
                     .to_vec(),
             );
             html.title = String::from("Cover");
-            writer.write(common::COVER, to_html(&html).as_bytes())?;
+            writer.write(common::COVER, to_html(&mut html).as_bytes())?;
         }
         Ok(())
     }
@@ -451,7 +676,7 @@ impl EpubBook {
     ///
     /// [file] 文件路径，一般以.epub结尾
     ///
-    pub fn write(&self, file: &str) -> EpubResult<()> {
+    pub fn write(&mut self, file: &str) -> EpubResult<()> {
         let mut writer = zip_writer::ZipFileWriter::new(file)?;
         self.write_with_writer(&mut writer)
     }
@@ -472,7 +697,7 @@ impl EpubBook {
     /// ```
     ///
     ///
-    pub fn write_with_writer(&self, writer: &mut impl EpubWriter) -> EpubResult<()> {
+    pub fn write_with_writer(&mut self, writer: &mut impl EpubWriter) -> EpubResult<()> {
         self.write_base(writer)?;
         self.write_assets(writer)?;
         self.write_chapters(writer)?;
@@ -549,6 +774,11 @@ mod tests {
         book.set_creator("作者");
         book.set_identifier("id");
         book.set_description("desc");
+        book.set_date("29939");
+        book.set_subject("subject");
+        book.set_format("format");
+        book.set_publisher("publisher");
+        book.set_contributor("contributor");
         // epub.cover = Some(EpubAssets::default());
 
         let mut cover = EpubAssets::default();

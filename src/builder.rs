@@ -87,7 +87,7 @@ impl EpubBuilder {
     ///
     pub fn metadata(mut self, key: &str, value: &str) -> Self {
         self.book
-            .add_meta(EpubMetaData::default().push_attr(key, value));
+            .add_meta(EpubMetaData::default().with_attr(key, value));
         self
     }
 
@@ -98,7 +98,7 @@ impl EpubBuilder {
         self.book.add_assets(
             EpubAssets::default()
                 .with_file_name(file_name)
-                .with_data(data)
+                .with_data(data),
         );
         self
     }
@@ -113,7 +113,7 @@ impl EpubBuilder {
         self.book.set_cover(
             EpubAssets::default()
                 .with_file_name(file_name)
-                .with_data(data)
+                .with_data(data),
         );
 
         self
@@ -153,14 +153,13 @@ impl EpubBuilder {
                 nav.push(
                     EpubNav::default()
                         .with_title(ele.title())
-                        .with_file_name(ele.file_name())
+                        .with_file_name(ele.file_name()),
                 );
             }
 
             for ele in nav {
                 self.book.add_nav(ele);
             }
-
         }
     }
 
@@ -191,9 +190,9 @@ impl EpubBuilder {
         self.book.write(file)
     }
 
-    /// 
+    ///
     /// 输出到内存
-    /// 
+    ///
     pub fn mem(mut self) -> EpubResult<Vec<u8>> {
         self.gen_last_modify();
         self.gen_nav();
@@ -219,7 +218,7 @@ mod tests {
             .with_creator("作者")
             .with_date("2024-03-14")
             .with_description("一本好书")
-            .with_identifier("isbi")
+            .with_identifier("isbn")
             .with_publisher("行星出版社")
             .add_chapter(
                 EpubHtml::default()

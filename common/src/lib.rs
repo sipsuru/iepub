@@ -35,10 +35,12 @@ pub trait EpubItem {
     }
 
     fn set_data(&mut self, data: Vec<u8>);
-    ///
-    /// 返回数据
-    ///
-    fn data(&self) -> Option<&[u8]>;
+    // /
+    // / 返回数据
+    // /
+    // fn data(&mut self) -> Option<&[u8]>;
+
+    // fn read_data(&mut self) -> Option<&[u8]>;
 }
 
 pub static EPUB: &str = "EPUB/";

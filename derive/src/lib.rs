@@ -116,6 +116,8 @@ pub fn epub_base(_attr: TokenStream, input: TokenStream) -> TokenStream {
                     media_type:String,
                     /// 数据
                     _data: Option<Vec<u8>>,
+                        /// 处于读模式
+                    reader:Option<std::rc::Rc<std::cell::RefCell< Box<dyn crate::EpubReaderTrait>>>>,
                     #(#fields),*// 结尾必须有个逗号，否则虽然生成的字符串语法正确，但是还是会报错
                 }
             };
@@ -161,9 +163,6 @@ pub fn deriver_epub_base(input: TokenStream) -> TokenStream {
                         // }else{
                             self._data = Some(data);
                         // }
-                    }
-                    fn data(&self) -> Option<&[u8]>{
-                       self._data.as_ref().map(|f|f.as_slice())
                     }
 
 

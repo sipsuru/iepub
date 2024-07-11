@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use common::EpubItem;
+use quick_xml::events::Event;
 
 use crate::{EpubBook, EpubError, EpubHtml, EpubNav, EpubResult};
 
@@ -44,7 +45,7 @@ static XHTML_5: &str = r#"
 
 ///
 /// 生成html
-pub(crate) fn to_html(chap: &EpubHtml) -> String {
+pub(crate) fn to_html(chap: &mut EpubHtml) -> String {
     let mut css = String::new();
     if let Some(links) = chap.links.as_ref() {
         for ele in links {
@@ -62,7 +63,16 @@ pub(crate) fn to_html(chap: &EpubHtml) -> String {
     if let Some(v) = cus_css {
         css.push_str(format!("\n<style type=\"text/css\">{}</style>", v).as_str());
     }
-
+    let mut body = String::new();
+    {
+        body.insert_str(
+            0,
+            String::from_utf8(chap.data().as_ref().unwrap().to_vec())
+                .unwrap()
+                .as_str(),
+        );
+        // 正文
+    }
     format!(
         "{}{}{}{}{}{}{}{}{}",
         XHTML_1,
@@ -72,9 +82,7 @@ pub(crate) fn to_html(chap: &EpubHtml) -> String {
         XHTML_3,
         chap.title,
         XHTML_4,
-        String::from_utf8(chap.data().as_ref().unwrap().to_vec())
-            .unwrap()
-            .as_str(), // 正文
+        body, // 正文
         XHTML_5
     )
     // format_args!(XHTML,chap.title,"",chap.title,chap.data.unwrap())
@@ -289,12 +297,6 @@ fn write_metadata(
             .write_empty()?;
     }
 
-    if let Some(creator) = book.creator() {
-        xml.create_element("dc:creator")
-            .with_attribute(("id", "creator"))
-            .write_text_content(BytesText::new(creator))?;
-    }
-
     if let Some(v) = book.format() {
         xml.create_element("dc:format")
             .with_attribute(("id", "format"))
@@ -335,7 +337,6 @@ fn write_metadata(
 }
 
 pub(crate) fn do_to_opf(book: &EpubBook, generator: &str) -> EpubResult<String> {
-
     let vue: Vec<u8> = Vec::new();
     let mut xml = quick_xml::Writer::new(std::io::Cursor::new(vue));
     use quick_xml::events::*;
@@ -434,12 +435,90 @@ pub(crate) fn to_opf(book: &EpubBook, generator: &str) -> String {
     }
 }
 
+///
+/// 解析html获取相关数据
+///
+pub(crate) fn get_html_info(html: &str, chap: &mut EpubHtml) -> EpubResult<()> {
+    use quick_xml::reader::Reader;
+    let mut reader = Reader::from_str(html);
+    // reader.config_mut().trim_text(true);
+    let mut buf = Vec::new();
+    let mut parent: Vec<&str> = Vec::new();
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Eof) => {
+                return Ok(());
+            }
+            Err(e) => {
+                return Err(EpubError::Xml(e));
+            }
+            Ok(Event::Start(body)) => match body.name().as_ref() {
+                b"html" => {
+                    parent.push("html");
+                }
+                b"head" => {
+                    if parent.len() != 1 || parent[0] != "html" {
+                        return Err(EpubError::Unknown);
+                    }
+                    parent.push("head");
+                }
+                b"title" => {
+                    if parent.len() == 2 && parent[0] == "html" && parent[1] == "head" {
+                        parent.push("title");
+                    }
+                }
+                b"body" => {
+                    let m = reader
+                        .read_text(body.to_end().to_owned().name())
+                        .map(|f| f.to_string())
+                        .map_err(|f| EpubError::Xml(f));
+                    if m.is_ok() {
+                        chap.set_data(m.unwrap().into_bytes());
+                    }
+                }
+                _ => {}
+            },
+            Ok(Event::End(e)) => match e.name().as_ref() {
+                b"title" => {
+                    if !parent.is_empty() {
+                        parent.remove(parent.len() - 1);
+                    }
+                }
+                b"head" => {
+                    if !parent.is_empty() {
+                        parent.remove(parent.len() - 1);
+                    }
+                }
+                b"body" => {
+                    if !parent.is_empty() {
+                        parent.remove(parent.len() - 1);
+                    }
+                }
+                b"html" => {
+                    if !parent.is_empty() {
+                        parent.remove(parent.len() - 1);
+                    }
+                }
+                _ => {}
+            },
+            Ok(Event::Text(e)) => {
+                if parent.len() == 3 && parent[2] == "title" {
+                    let v = String::from_utf8(e.into_inner().to_vec())
+                        .map_err(|f| EpubError::Utf8(f))?;
+                    chap.set_title(v.as_str().trim());
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use common::{EpubItem, LinkRel};
 
     use crate::{
-        html::{get_media_type, to_html, to_toc_xml},
+        html::{get_html_info, get_media_type, to_html, to_toc_xml},
         EpubAssets, EpubBook, EpubHtml, EpubLink, EpubMetaData, EpubNav,
     };
 
@@ -458,7 +537,7 @@ mod test {
         };
 
         t.add_link(link);
-        let html = to_html(&t);
+        let html = to_html(&mut t);
 
         println!("{}", html);
 
@@ -567,6 +646,14 @@ ok
 
         epub.set_title("中文");
         epub.set_creator("作者");
+        epub.set_date("29939");
+        epub.set_subject("subject");
+        epub.set_format("format");
+        epub.set_publisher("publisher");
+        epub.set_contributor("contributor");
+        epub.set_description("description");
+        epub.set_identifier("identifier");
+
         let mut n = EpubNav::default();
         n.set_title("作品说明");
         n.set_file_name("file_name");
@@ -594,8 +681,8 @@ ok
 
         epub.add_meta(
             EpubMetaData::default()
-                .push_attr("ok", "ov")
-                .set_text("new"),
+                .with_attr("ok", "ov")
+                .with_text("new"),
         );
 
         epub.set_date("2024-06-28T08:07:07UTC");
@@ -604,7 +691,7 @@ ok
         let res = to_opf(&epub, "epub-rs");
         println!("[{}]", res);
 
-        let ass: &str = r###"<?xml version="1.0" encoding="utf-8"?><package xmlns="http://www.idpf.org/2007/opf" unique-identifier="id" version="3.0" prefix="rendition: http://www.idpf.org/vocab/rendition/#"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf"><meta property="dcterms:modified">2024-06-28T03:07:07UTC</meta><dc:date id="date">2024-06-28T08:07:07UTC</dc:date><meta name="generator" content="epub-rs"/><dc:identifier id="id"></dc:identifier><dc:title>中文</dc:title><dc:creator id="creator">作者</dc:creator><meta name="cover" content="cover-img"/><dc:creator id="creator">作者</dc:creator><meta ok="ov">new</meta></metadata><manifest><item href="" id="cover-img" media-type="" properties="cover-image"/><item href="cover.xhtml" id="cover" media-type="application/xhtml+xml"/><item href="" id="chap_0" media-type="application/xhtml+xml"/><item href="" id="assets_0" media-type=""/><item href="toc.ncx" id="toc" media-type="application/x-dtbncx+xml"/><item href="nav.xhtml" id="nav" media-type="application/xhtml+xml" properties="nav"/></manifest><spine toc="ncx"><itemref idref="nav"/><itemref idref="chap_0"/></spine></package>"###;
+        let ass: &str = r###"<?xml version="1.0" encoding="utf-8"?><package xmlns="http://www.idpf.org/2007/opf" unique-identifier="id" version="3.0" prefix="rendition: http://www.idpf.org/vocab/rendition/#"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf"><meta property="dcterms:modified">2024-06-28T03:07:07UTC</meta><dc:date id="date">2024-06-28T08:07:07UTC</dc:date><meta name="generator" content="epub-rs"/><dc:identifier id="id">identifier</dc:identifier><dc:title>中文</dc:title><dc:creator id="creator">作者</dc:creator><dc:description>description</dc:description><meta property="desc">description</meta><meta name="cover" content="cover-img"/><dc:format id="format">format</dc:format><dc:publisher id="publisher">publisher</dc:publisher><dc:subject id="subject">subject</dc:subject><dc:contributor id="contributor">contributor</dc:contributor><meta ok="ov">new</meta></metadata><manifest><item href="" id="cover-img" media-type="" properties="cover-image"/><item href="cover.xhtml" id="cover" media-type="application/xhtml+xml"/><item href="" id="chap_0" media-type="application/xhtml+xml"/><item href="" id="assets_0" media-type=""/><item href="toc.ncx" id="toc" media-type="application/x-dtbncx+xml"/><item href="nav.xhtml" id="nav" media-type="application/xhtml+xml" properties="nav"/></manifest><spine toc="ncx"><itemref idref="nav"/><itemref idref="chap_0"/></spine></package>"###;
 
         assert_eq!(ass, res.as_str());
     }
@@ -621,5 +708,30 @@ ok
             get_media_type("1.xhtml")
         );
         assert_eq!(String::from("image/jpeg"), get_media_type("1.jpeg"));
+    }
+
+    #[test]
+    fn test_get_html_info() {
+        let mut book = EpubHtml::default();
+
+        get_html_info(
+            r"<html>
+    <head><title> 测试标题 </title></head>
+    <body>
+    <p>段落1</p>ok
+    </body>
+         </html>",
+            &mut book,
+        )
+        .unwrap();
+
+        assert_eq!(r"测试标题", book.title());
+
+        assert_eq!(
+            r"
+    <p>段落1</p>ok
+    ",
+            String::from_utf8(book.data().unwrap().to_vec()).unwrap()
+        );
     }
 }
