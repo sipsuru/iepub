@@ -1,11 +1,11 @@
 use std::{
-    io::{Cursor, Read, Seek},
+    io::{Read, Seek},
     ops::Deref,
 };
 
 use common::EpubItem;
 use quick_xml::events::BytesStart;
-use zip::read::ZipFile;
+
 
 use crate::{EpubAssets, EpubBook, EpubError, EpubHtml, EpubMetaData, EpubReaderTrait, EpubResult};
 
@@ -88,7 +88,7 @@ fn read_meta_xml(
     book: &mut EpubBook,
 ) -> EpubResult<()> {
     use quick_xml::events::Event;
-    use quick_xml::reader::Reader;
+    
 
     // 模拟 栈，记录当前的层级
     let mut parent: Vec<String> = vec!["package".to_string(), "metadata".to_string()];
@@ -98,7 +98,7 @@ fn read_meta_xml(
             Ok(Event::Eof) => {
                 break;
             }
-            Err(e) => {
+            Err(_e) => {
                 return invalid!("err");
             }
             Ok(Event::Start(e)) => match e.name().as_ref() {
@@ -306,9 +306,9 @@ fn read_spine_xml(
     assets: &mut Vec<EpubAssets>,
 ) -> EpubResult<()> {
     use quick_xml::events::Event;
-    use quick_xml::reader::Reader;
+    
     // 模拟 栈，记录当前的层级
-    let mut parent: Vec<String> = vec!["package".to_string(), "metadata".to_string()];
+    let _parent: Vec<String> = vec!["package".to_string(), "metadata".to_string()];
     let mut buf = Vec::new();
     loop {
         match reader.read_event_into(&mut buf) {
@@ -365,17 +365,17 @@ fn read_spine_xml(
 ///
 fn read_manifest_xml(
     reader: &mut quick_xml::reader::Reader<&[u8]>,
-    book: &mut EpubBook,
+    _book: &mut EpubBook,
     assets: &mut Vec<EpubAssets>,
 ) -> EpubResult<()> {
     use quick_xml::events::Event;
-    use quick_xml::reader::Reader;
+    
     // 模拟 栈，记录当前的层级
-    let mut parent: Vec<String> = vec!["package".to_string(), "metadata".to_string()];
+    let _parent: Vec<String> = vec!["package".to_string(), "metadata".to_string()];
     let mut buf = Vec::new();
     loop {
         match reader.read_event_into(&mut buf) {
-            Ok(Event::End(e)) => {
+            Ok(Event::End(_e)) => {
                 break;
             }
             Ok(Event::Empty(e)) => {
@@ -428,7 +428,7 @@ fn read_opf_xml(xml: &str, book: &mut EpubBook) -> EpubResult<()> {
             Ok(Event::Eof) => {
                 break;
             }
-            Err(e) => {
+            Err(_e) => {
                 return invalid!("err");
             }
             Ok(Event::Start(e)) => match e.name().as_ref() {
@@ -456,7 +456,7 @@ fn read_opf_xml(xml: &str, book: &mut EpubBook) -> EpubResult<()> {
             Ok(Event::Empty(e)) => match e.name().as_ref() {
                 _ => {}
             },
-            Ok(Event::Text(txt)) => {
+            Ok(Event::Text(_txt)) => {
                 if !parent.is_empty() {
                     match parent[parent.len() - 1].as_str() {
                         _ => {}
@@ -525,11 +525,11 @@ struct EpubReader<T> {
 // }
 impl<T: Read + Seek> crate::EpubReaderTrait for EpubReader<T> {
     fn read(&mut self, book: &mut EpubBook) -> EpubResult<()> {
-        let mut reader = &mut self.inner;
+        let reader = &mut self.inner;
 
         {
             // 判断文件格式
-            let mut content = read_from_zip!(reader, "mimetype");
+            let content = read_from_zip!(reader, "mimetype");
 
             if content != "application/epub+zip" {
                 return invalid!("not a epub file");
@@ -537,12 +537,12 @@ impl<T: Read + Seek> crate::EpubReaderTrait for EpubReader<T> {
         }
 
         {
-            let mut content = read_from_zip!(reader, "META-INF/container.xml");
+            let content = read_from_zip!(reader, "META-INF/container.xml");
 
             let opf_path = get_opf_location(content.as_str());
 
             if let Ok(path) = opf_path {
-                let mut opf = read_from_zip!(reader, path.as_str());
+                let opf = read_from_zip!(reader, path.as_str());
 
                 read_opf_xml(opf.as_str(), book)?;
             }
@@ -587,7 +587,7 @@ pub fn read_from_vec(data: Vec<u8>) -> EpubResult<EpubBook> {
 ///
 pub fn read_from_file(file: &str) -> EpubResult<EpubBook> {
     let r = zip::ZipArchive::new(std::fs::File::open(file)?)?;
-    let mut reader = EpubReader {
+    let reader = EpubReader {
         inner: r,
         lazy: true,
     };
@@ -634,7 +634,7 @@ impl<T: Read + Seek> EpubReader<T> {
 mod tests {
     use crate::{builder::EpubBuilder, reader::read_from_vec, EpubHtml};
 
-    use super::EpubReader;
+    
 
     #[test]
     fn test_reader() {
@@ -658,9 +658,9 @@ mod tests {
                 )
         }
 
-        let mut data = create_book().mem().unwrap();
+        let data = create_book().mem().unwrap();
 
-        let mut book = read_from_vec(data);
+        let book = read_from_vec(data);
         let mut nb = book.unwrap();
         println!("\n{}", nb);
         let b = create_book().book();
@@ -680,10 +680,10 @@ mod tests {
         assert_eq!(b.chapters.len() + 1, nb.chapters.len());
 
         // 读取html
-        let mut chapter = nb.get_chapter("0.xhtml");
+        let chapter = nb.get_chapter("0.xhtml");
         // assert_ne!(None, chapter);
         assert_eq!(true, chapter.is_some());
-        let mut c = &mut chapter.unwrap();
+        let c = &mut chapter.unwrap();
 
         let data = c.data();
 

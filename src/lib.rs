@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::fmt::{Debug, Display};
 use std::rc::Rc;
 use std::str::FromStr;
-use std::{collections::HashMap, slice::Iter};
+use std::{collections::HashMap};
 
 use common::{EpubItem, LinkRel};
 use derive::epub_base;
