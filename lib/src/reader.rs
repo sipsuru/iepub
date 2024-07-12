@@ -1,11 +1,9 @@
 use std::{
-    io::{Read, Seek},
-    ops::Deref,
+    collections::HashMap, io::{Read, Seek}, ops::Deref
 };
 
 use common::EpubItem;
 use quick_xml::events::BytesStart;
-
 
 use crate::{EpubAssets, EpubBook, EpubError, EpubHtml, EpubMetaData, EpubReaderTrait, EpubResult};
 
@@ -48,7 +46,6 @@ fn get_opf_location(xml: &str) -> EpubResult<String> {
                 break;
             }
             Ok(Event::Empty(e)) => {
-                println!("start {:?}", e.name());
                 if e.name().as_ref() == b"rootfile" {
                     if let Ok(path) = e.try_get_attribute("full-path") {
                         res = match path.map(|f| {
@@ -88,7 +85,6 @@ fn read_meta_xml(
     book: &mut EpubBook,
 ) -> EpubResult<()> {
     use quick_xml::events::Event;
-    
 
     // 模拟 栈，记录当前的层级
     let mut parent: Vec<String> = vec!["package".to_string(), "metadata".to_string()];
@@ -99,13 +95,16 @@ fn read_meta_xml(
                 break;
             }
             Err(_e) => {
+                println!("err");
                 return invalid!("err");
             }
-            Ok(Event::Start(e)) => match e.name().as_ref() {
-                b"meta" => {
-                    println!("meta {:?}", e);
+            Ok(Event::Start(e)) => {
+                let name = String::from_utf8(e.name().as_ref().to_vec())
+                    .map_err(|f| EpubError::Utf8(f))?;
+                println!("start {}", name);
+
+                if name == "meta" {
                     if parent.len() != 2 || parent[1] != "metadata" {
-                        println!("meta = {:?}", parent);
                         return invalid!("not valid opf meta");
                     } else {
                         let meta = create_meta(&e);
@@ -114,189 +113,95 @@ fn read_meta_xml(
                         }
                         parent.push("meta".to_string());
                     }
-                }
-                b"dc:identifier" => {
+                } else {
                     if parent.len() != 2 || parent[1] != "metadata" {
                         return invalid!("not valid opf identifier");
                     } else {
-                        parent.push("dc:identifier".to_string());
+                        parent.push(name);
                     }
                 }
-                b"dc:title" => {
-                    if parent.len() != 2 || parent[1] != "metadata" {
-                        return invalid!("not valid opf title");
-                    } else {
-                        parent.push("dc:title".to_string());
-                    }
-                }
-                b"dc:creator" => {
-                    if parent.len() != 2 || parent[1] != "metadata" {
-                        return invalid!("not valid opf creator");
-                    } else {
-                        parent.push("dc:creator".to_string());
-                    }
-                }
-                b"dc:description" => {
-                    if parent.len() != 2 || parent[1] != "metadata" {
-                        return invalid!("not valid opf description");
-                    } else {
-                        parent.push("dc:description".to_string());
-                    }
-                }
-                b"dc:format" => {
-                    if parent.len() != 2 || parent[1] != "metadata" {
-                        return invalid!("not valid opf format");
-                    } else {
-                        parent.push("dc:format".to_string());
-                    }
-                }
-                b"dc:publisher" => {
-                    if parent.len() != 2 || parent[1] != "metadata" {
-                        return invalid!("not valid opf publisher");
-                    } else {
-                        parent.push("dc:publisher".to_string());
-                    }
-                }
-                b"dc:subject" => {
-                    if parent.len() != 2 || parent[1] != "metadata" {
-                        return invalid!("not valid opf subject");
-                    } else {
-                        parent.push("dc:subject".to_string());
-                    }
-                }
-                b"dc:contributor" => {
-                    if parent.len() != 2 || parent[1] != "metadata" {
-                        return invalid!("not valid opf contributor");
-                    } else {
-                        parent.push("dc:contributor".to_string());
-                    }
-                }
-                b"dc:date" => {
-                    if parent.len() != 2 || parent[1] != "metadata" {
-                        return invalid!("not valid opf date");
-                    } else {
-                        parent.push("dc:date".to_string());
-                    }
-                }
-                _ => {}
-            },
-            Ok(Event::Empty(e)) => match e.name().as_ref() {
-                b"meta" => {
-                    if parent.len() != 2 || parent[1] != "metadata" {
-                        return invalid!("not valid opf meta empty");
-                    } else {
-                        let meta = create_meta(&e);
-                        if let Ok(m) = meta {
-                            book.add_meta(m);
+            }
+            Ok(Event::Empty(e)) => {
+                println!(
+                    "empty {}",
+                    String::from_utf8(e.name().as_ref().to_vec()).unwrap()
+                );
+                match e.name().as_ref() {
+                    b"meta" => {
+                        println!("meta 1");
+                        if parent.len() != 2 || parent[1] != "metadata" {
+                            return invalid!("not valid opf meta empty");
+                        } else {
+                            let meta = create_meta(&e);
+                            if let Ok(m) = meta {
+                                book.add_meta(m);
+                            }
                         }
                     }
+                    _ => {}
                 }
-                _ => {}
-            },
+            }
             Ok(Event::Text(txt)) => {
                 if !parent.is_empty() {
                     match parent[parent.len() - 1].as_str() {
                         "meta" => {
-                            if let Some(m) = book.get_meta(book.meta_len() - 1) {
-                                m.set_text(txt.unescape().unwrap().deref());
+                            if let Some(m) = book.get_meta_mut(book.meta_len() - 1) {
+                                m.set_text(txt.unescape()?.deref());
                             }
                         }
                         "dc:identifier" => {
-                            book.set_identifier(txt.unescape().unwrap().deref());
+                            book.set_identifier(txt.unescape()?.deref());
                         }
                         "dc:title" => {
-                            book.set_title(txt.unescape().unwrap().deref());
+                            book.set_title(txt.unescape()?.deref());
                         }
                         "dc:creator" => {
-                            book.set_creator(txt.unescape().unwrap().deref());
+                            println!("dc:creator text");
+                            book.set_creator(txt.unescape()?.deref());
                         }
                         "dc:description" => {
-                            book.set_description(txt.unescape().unwrap().deref());
+                            println!("dc:description text");
+                            book.set_description(txt.unescape()?.deref());
                         }
                         "dc:format" => {
-                            book.set_format(txt.unescape().unwrap().deref());
+                            book.set_format(txt.unescape()?.deref());
                         }
                         "dc:publisher" => {
-                            book.set_publisher(txt.unescape().unwrap().deref());
+                            book.set_publisher(txt.unescape()?.deref());
                         }
                         "dc:subject" => {
-                            book.set_subject(txt.unescape().unwrap().deref());
+                            book.set_subject(txt.unescape()?.deref());
                         }
                         "dc:contributor" => {
-                            book.set_contributor(txt.unescape().unwrap().deref());
+                            book.set_contributor(txt.unescape()?.deref());
                         }
                         "dc:date" => {
-                            book.set_date(txt.unescape().unwrap().deref());
+                            book.set_date(txt.unescape()?.deref());
                         }
                         _ => {}
                     }
                 }
             }
-            Ok(Event::End(e)) => match e.name().as_ref() {
-                b"metadata" => {
+            Ok(Event::End(e)) => {
+                let name = String::from_utf8(e.name().as_ref().to_vec())
+                    .map_err(|f| EpubError::Utf8(f))?;
+
+                if name == "metadata" {
                     if parent.len() != 2 || parent[0] != "package" {
                         return invalid!("not valid opf metadata end");
                     }
                     break;
                 }
-                b"meta" => {
-                    if !parent.is_empty() && parent[parent.len() - 1] == "meta" {
-                        parent.remove(parent.len() - 1);
-                    }
+
+                if !parent.is_empty() && parent[parent.len() - 1] == name {
+                    parent.remove(parent.len() - 1);
                 }
-                b"dc:identifier" => {
-                    if !parent.is_empty() && parent[parent.len() - 1] == "dc:identifier" {
-                        parent.remove(parent.len() - 1);
-                    }
-                }
-                b"dc:title" => {
-                    if !parent.is_empty() && parent[parent.len() - 1] == "dc:title" {
-                        parent.remove(parent.len() - 1);
-                    }
-                }
-                b"dc:creator" => {
-                    if !parent.is_empty() && parent[parent.len() - 1] == "dc:creator" {
-                        parent.remove(parent.len() - 1);
-                    }
-                }
-                b"dc:format" => {
-                    if !parent.is_empty() && parent[parent.len() - 1] == "dc:format" {
-                        parent.remove(parent.len() - 1);
-                    }
-                }
-                b"dc:publisher" => {
-                    if !parent.is_empty() && parent[parent.len() - 1] == "dc:publisher" {
-                        parent.remove(parent.len() - 1);
-                    }
-                }
-                b"dc:subject" => {
-                    if !parent.is_empty() && parent[parent.len() - 1] == "dc:subject" {
-                        parent.remove(parent.len() - 1);
-                    }
-                }
-                b"dc:contributor" => {
-                    if !parent.is_empty() && parent[parent.len() - 1] == "dc:contributor" {
-                        parent.remove(parent.len() - 1);
-                    }
-                }
-                b"dc:date" => {
-                    if !parent.is_empty() && parent[parent.len() - 1] == "dc:date" {
-                        parent.remove(parent.len() - 1);
-                    }
-                }
-                b"dc:description" => {
-                    if !parent.is_empty() && parent[parent.len() - 1] == "dc:description" {
-                        parent.remove(parent.len() - 1);
-                    }
-                }
-                _ => {
-                    break;
-                }
-            },
+
+                // println!("end {}",String::from_utf8(e.name().as_ref().to_vec()).unwrap());
+            }
             _ => {}
         }
     }
-    println!("新");
     Ok(())
 }
 
@@ -306,7 +211,7 @@ fn read_spine_xml(
     assets: &mut Vec<EpubAssets>,
 ) -> EpubResult<()> {
     use quick_xml::events::Event;
-    
+
     // 模拟 栈，记录当前的层级
     let _parent: Vec<String> = vec!["package".to_string(), "metadata".to_string()];
     let mut buf = Vec::new();
@@ -330,7 +235,6 @@ fn read_spine_xml(
 
             Ok(Event::Empty(e)) => match e.name().as_ref() {
                 b"itemref" => {
-                    println!("itemref ");
                     if let Ok(href) = e.try_get_attribute("idref") {
                         if let Some(h) = href.map(|f| {
                             f.unescape_value()
@@ -369,7 +273,7 @@ fn read_manifest_xml(
     assets: &mut Vec<EpubAssets>,
 ) -> EpubResult<()> {
     use quick_xml::events::Event;
-    
+
     // 模拟 栈，记录当前的层级
     let _parent: Vec<String> = vec!["package".to_string(), "metadata".to_string()];
     let mut buf = Vec::new();
@@ -413,12 +317,13 @@ fn read_manifest_xml(
 }
 
 fn read_opf_xml(xml: &str, book: &mut EpubBook) -> EpubResult<()> {
-    println!("{}", xml);
     use quick_xml::events::Event;
     use quick_xml::reader::Reader;
 
     let mut reader = Reader::from_str(xml);
-    // reader.config_mut().trim_text(true);
+    let mut config = reader.config_mut();
+    config.trim_text(true);
+
     let mut buf = Vec::new();
     // 模拟 栈，记录当前的层级
     let mut parent: Vec<String> = Vec::new();
@@ -444,11 +349,9 @@ fn read_opf_xml(xml: &str, book: &mut EpubBook) -> EpubResult<()> {
                     read_meta_xml(&mut reader, book)?;
                 }
                 b"manifest" => {
-                    println!("manifest");
                     read_manifest_xml(&mut reader, book, &mut assets)?;
                 }
                 b"spine" => {
-                    println!("spine");
                     read_spine_xml(&mut reader, book, &mut assets)?;
                 }
                 _ => {}
@@ -482,27 +385,57 @@ fn read_opf_xml(xml: &str, book: &mut EpubBook) -> EpubResult<()> {
     }
 
     let mut last_modify = None;
+    let mut cover = None;
     {
         // 解析meta，获取部分关键数据
         for i in 0..book.meta_len() {
             if let Some(meta) = book.get_meta(i) {
-                println!("meta {:?}", meta);
-                for (key, value) in meta.attrs() {
-                    println!("meta ele {} {} {} ", key, value, key.as_str() == "property");
-                    if key.as_str() == "property"
-                        && value == "dcterms:modified"
-                        && meta.text().is_some()
-                    {
-                        last_modify = Some(meta.text().unwrap().to_string());
-                        // book.set_last_modify(meta.text().unwrap().to_string().as_str());
+                {
+                    if let Some((key, value)) = meta.attr.get_key_value("name") {
+                        if value == "cover" {
+                            // 可能是封面
+                            if let Some(content) = meta.attr.get("content") {
+                                // 对应的封面的id
+
+                                // 查找封面
+                                for ele in book.assets() {
+                                    if ele.id() == content {
+                                        // 封面
+                                        cover = Some(ele.clone());
+                                        // book.set_cover(ele.clone());
+                                        break;
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
+                {
+                    if let Some(pro) = meta.attr.get("property") {
+                        if pro == "dcterms:modified" && meta.text.is_some() {
+                            last_modify = Some(meta.text().unwrap().to_string());
+                        }
+                    }
+                }
+
+                // for (key, value) in meta.attrs() {
+                //     if key.as_str() == "property"
+                //         && value == "dcterms:modified"
+                //         && meta.text().is_some()
+                //     {
+                //         last_modify = Some(meta.text().unwrap().to_string());
+                //         // book.set_last_modify(meta.text().unwrap().to_string().as_str());
+                //     }
+                // }
             }
         }
     }
 
     if let Some(l) = last_modify {
         book.set_last_modify(l.as_str());
+    }
+    if let Some(co) = cover {
+        book.set_cover(co);
     }
 
     Ok(())
@@ -575,7 +508,8 @@ pub fn read_from_vec(data: Vec<u8>) -> EpubResult<EpubBook> {
         lazy: true,
     };
     let mut book = EpubBook::default();
-    let re:std::rc::Rc<std::cell::RefCell<Box<dyn EpubReaderTrait>>> = std::rc::Rc::new(std::cell::RefCell::new(Box::new(reader)));
+    let re: std::rc::Rc<std::cell::RefCell<Box<dyn EpubReaderTrait>>> =
+        std::rc::Rc::new(std::cell::RefCell::new(Box::new(reader)));
     book.reader = Some(std::rc::Rc::clone(&re));
 
     (*re.borrow_mut()).read(&mut book)?;
@@ -593,7 +527,8 @@ pub fn read_from_file(file: &str) -> EpubResult<EpubBook> {
     };
 
     let mut book = EpubBook::default();
-    let re:std::rc::Rc<std::cell::RefCell<Box<dyn EpubReaderTrait>>> = std::rc::Rc::new(std::cell::RefCell::new(Box::new(reader)));
+    let re: std::rc::Rc<std::cell::RefCell<Box<dyn EpubReaderTrait>>> =
+        std::rc::Rc::new(std::cell::RefCell::new(Box::new(reader)));
     book.reader = Some(std::rc::Rc::clone(&re));
 
     (*re.borrow_mut()).read(&mut book)?;
@@ -604,37 +539,18 @@ impl<T: Read + Seek> EpubReader<T> {
     pub fn set_lazy(&mut self, lazy: bool) {
         self.lazy = lazy;
     }
-
-    // /
-    // / 读取epub中的某个文件
-    // /
-    // / [file_name] 绝对路径，需要自行判断是否添加EPUB前缀
-    // /
-    // pub(crate) fn read_file(&mut self, file_name: &str) -> EpubResult<Vec<u8>> {
-    //     let mut file = invalid!(self.inner.by_name(file_name), "not exist");
-    //     let mut content = Vec::new();
-    //     invalid!(file.read_to_end(&mut content), "read err");
-    //     Ok(content)
-    // }
-
-    // /
-    // / 读取epub中的某个文件
-    // /
-    // / [file_name] 绝对路径，需要自行判断是否添加EPUB前缀
-    // /
-    // pub(crate) fn read_string(&mut self, file_name: &str) -> EpubResult<String> {
-    //     let mut file = invalid!(self.inner.by_name(file_name), "not exist");
-    //     let mut content = String::new();
-    //     invalid!(file.read_to_string(&mut content), "read err");
-    //     Ok(content)
-    // }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{builder::EpubBuilder, reader::read_from_vec, EpubHtml};
 
-    
+    use super::read_from_file;
+
+    #[test]
+    fn test() {
+        read_from_file("/app/魔女之旅.epub").unwrap();
+    }
 
     #[test]
     fn test_reader() {
@@ -699,10 +615,11 @@ html
             d
         );
 
-
-
-        for a in nb.assets() {
-         println!("ass=[{}]",String::from_utf8(a.data().unwrap().to_vec()).unwrap() );   
+        for a in nb.assets_mut() {
+            println!(
+                "ass=[{}]",
+                String::from_utf8(a.data().unwrap().to_vec()).unwrap()
+            );
         }
 
         // println!("{}",c.data().map(|f|String::from_utf8(f.to_vec())).unwrap().unwrap());

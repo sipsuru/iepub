@@ -4,6 +4,8 @@ use std::rc::Rc;
 use std::str::FromStr;
 use std::{collections::HashMap};
 
+extern crate common;
+extern crate derive;
 use common::{EpubItem, LinkRel};
 use derive::epub_base;
 use html::{get_html_info, to_html, to_nav_html, to_opf, to_toc_xml};
@@ -157,11 +159,11 @@ impl EpubHtml {
 /// 例如css，字体，图片等
 ///
 #[epub_base]
-#[derive(Default)]
+#[derive(Default,Clone)]
 pub struct EpubAssets {}
 
 impl EpubAssets {
-    fn data(&mut self) -> Option<&[u8]> {
+    pub fn data(&mut self) -> Option<&[u8]> {
         let mut f = String::from(self._file_name.as_str());
         if self._data.is_none() && self.reader.is_some() && !f.is_empty() {
             if !f.starts_with(common::EPUB) {
@@ -187,21 +189,22 @@ impl Debug for EpubAssets {
             .field("_file_name", &self._file_name)
             .field("media_type", &self.media_type)
             .field("_data", &self._data)
+            .field("reader_mode", &self.reader.is_some())
             .finish()
     }
 }
 
-impl Clone for EpubAssets {
-    fn clone(&self) -> Self {
-        Self {
-            id: self.id.clone(),
-            _file_name: self._file_name.clone(),
-            media_type: self.media_type.clone(),
-            _data: self._data.clone(),
-            reader: None,
-        }
-    }
-}
+// impl Clone for EpubAssets {
+//     fn clone(&self) -> Self {
+//         Self {
+//             id: self.id.clone(),
+//             _file_name: self._file_name.clone(),
+//             media_type: self.media_type.clone(),
+//             _data: self._data.clone(),
+//             reader: self.reader.clone(),
+//         }
+//     }
+// }
 
 ///
 /// 目录信息
@@ -402,6 +405,10 @@ impl EpubBook {
     pub fn title(&self) -> &str {
         self.info.title.as_str()
     }
+    pub fn with_title(mut self,title: &str) ->Self{
+        self.set_title(title);
+        self
+    }
     pub fn identifier(&self) -> &str {
         self.info.identifier.as_str()
     }
@@ -409,6 +416,12 @@ impl EpubBook {
         self.info.identifier.clear();
         self.info.identifier.push_str(identifier);
     }
+    pub fn with_identifier(mut self, identifier: &str)->Self {
+        self.set_identifier(identifier);
+        self
+    }
+
+
 
     ///
     /// 添加元数据
@@ -428,8 +441,11 @@ impl EpubBook {
         &self.meta
     }
 
-    pub(crate) fn get_meta(&mut self, index: usize) -> Option<&mut EpubMetaData> {
+    pub(crate) fn get_meta_mut(&mut self, index: usize) -> Option<&mut EpubMetaData> {
         self.meta.get_mut(index)
+    }
+    pub(crate) fn get_meta(&self, index: usize) -> Option<&EpubMetaData> {
+        self.meta.get(index)
     }
 
     pub(crate) fn meta_len(&self) -> usize {
@@ -469,7 +485,11 @@ impl EpubBook {
             // })
     }
 
-    pub fn assets(&mut self) -> std::slice::IterMut<EpubAssets> {
+    pub fn assets(&self) -> std::slice::Iter<EpubAssets> {
+        self.assets.iter()
+    }
+
+    pub fn assets_mut(&mut self) -> std::slice::IterMut<EpubAssets> {
         self.assets.iter_mut()
     }
 
@@ -505,6 +525,10 @@ impl EpubBook {
 
     pub fn set_cover(&mut self, cover: EpubAssets) {
         self.cover = Some(cover);
+    }
+
+    pub fn cover(&mut self) -> Option<&mut EpubAssets> {
+        self.cover.as_mut()
     }
 }
 
