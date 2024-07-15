@@ -4,6 +4,79 @@ pub enum LinkRel {
     OTHER,
 }
 
+#[macro_export]
+macro_rules! epub_base_field{
+    (
+     // meta data about struct
+     $(#[$meta:meta])*
+     $vis:vis struct $struct_name:ident {
+        $(
+        // meta data about field
+        $(#[$field_meta:meta])*
+        $field_vis:vis $field_name:ident : $field_type:ty
+        ),*$(,)?
+    }
+    ) => {
+        
+            $(#[$meta])*
+            pub struct $struct_name{
+                
+                id:String,
+                _file_name:String,
+                media_type:String,
+                _data: Option<Vec<u8>>,
+                reader:Option<std::rc::Rc<std::cell::RefCell< Box<dyn crate::EpubReaderTrait>>>>,
+                $(
+                    $(#[$field_meta])*
+                    $field_vis $field_name : $field_type,
+                )*
+
+            }
+
+            impl common::EpubItem for $struct_name {
+                fn file_name(&self)->&str{
+                    self._file_name.as_str()
+                }
+                fn set_file_name(&mut self,value: &str){
+                    self._file_name.clear();
+                    self._file_name.push_str(value);
+                }
+
+                fn id(&self)->&str{
+                    self.id.as_str()
+                }
+                fn set_id(&mut self,id:&str){
+                    self.id.clear();
+                    self.id.push_str(id);
+                }
+
+                fn set_data(&mut self, data: Vec<u8>) {
+                    // if let Some(d) = &mut self._data {
+                    //     d.clear();
+                    //     d.append(data);
+                    // }else{
+                        self._data = Some(data);
+                    // }
+                }
+
+
+            }
+
+            impl $struct_name {
+                pub fn with_file_name(mut self,value:&str)->Self{
+                    common::EpubItem::set_file_name(&mut self, value);
+                    self
+                }
+
+                pub fn with_data(mut self, value:Vec<u8>)->Self{
+                    common::EpubItem::set_data(&mut self,value);
+                    self
+                }
+            }
+        
+    }
+}
+
 pub trait EpubItem {
     ///
     /// 文件路径

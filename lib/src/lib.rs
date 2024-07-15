@@ -2,12 +2,11 @@ use std::cell::RefCell;
 use std::fmt::{Debug, Display};
 use std::rc::Rc;
 use std::str::FromStr;
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 extern crate common;
 extern crate derive;
-use common::{EpubItem, LinkRel};
-use derive::epub_base;
+use common::{epub_base_field, EpubItem, LinkRel};
 use html::{get_html_info, to_html, to_nav_html, to_opf, to_toc_xml};
 
 pub mod builder;
@@ -27,15 +26,16 @@ pub struct EpubLink {
     pub href: String,
 }
 
-#[epub_base]
-#[derive(Default)]
-pub struct EpubHtml {
-    pub lang: String,
-    links: Option<Vec<EpubLink>>,
-    /// 章节名称
-    title: String,
-    /// 自定义的css，会被添加到link下
-    css: Option<String>,
+epub_base_field!{
+    #[derive(Default)]
+    pub struct EpubHtml {
+        pub lang: String,
+        links: Option<Vec<EpubLink>>,
+        /// 章节名称
+        title: String,
+        /// 自定义的css，会被添加到link下
+        css: Option<String>,
+    }
 }
 
 impl Debug for EpubHtml {
@@ -139,28 +139,16 @@ impl EpubHtml {
     }
 }
 
-// impl Deref for EpubNcx {
-//     type Target = EpubItem;
-//     fn deref(&self) -> &Self::Target {
-//         &self.item
-//      }
 
-// }
-
-// impl DerefMut for EpubNcx {
-//     fn deref_mut(&mut self) -> &mut Self::Target {
-//         &mut self.item
-//     }
-// }
-
+epub_base_field!{
 ///
 /// 非章节资源
 ///
 /// 例如css，字体，图片等
 ///
-#[epub_base]
 #[derive(Default,Clone)]
 pub struct EpubAssets {}
+}
 
 impl EpubAssets {
     pub fn data(&mut self) -> Option<&[u8]> {
@@ -205,13 +193,12 @@ impl Debug for EpubAssets {
 //         }
 //     }
 // }
-
+epub_base_field!{
 ///
 /// 目录信息
 ///
 /// 支持嵌套
 ///
-#[epub_base]
 #[derive(Default)]
 pub struct EpubNav {
     /// 章节目录
@@ -219,7 +206,7 @@ pub struct EpubNav {
     title: String,
     child: Vec<EpubNav>,
 }
-
+}
 impl Debug for EpubNav {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("EpubNav")

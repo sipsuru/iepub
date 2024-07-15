@@ -95,13 +95,11 @@ fn read_meta_xml(
                 break;
             }
             Err(_e) => {
-                println!("err");
                 return invalid!("err");
             }
             Ok(Event::Start(e)) => {
                 let name = String::from_utf8(e.name().as_ref().to_vec())
                     .map_err(|f| EpubError::Utf8(f))?;
-                println!("start {}", name);
 
                 if name == "meta" {
                     if parent.len() != 2 || parent[1] != "metadata" {
@@ -122,13 +120,9 @@ fn read_meta_xml(
                 }
             }
             Ok(Event::Empty(e)) => {
-                println!(
-                    "empty {}",
-                    String::from_utf8(e.name().as_ref().to_vec()).unwrap()
-                );
+
                 match e.name().as_ref() {
                     b"meta" => {
-                        println!("meta 1");
                         if parent.len() != 2 || parent[1] != "metadata" {
                             return invalid!("not valid opf meta empty");
                         } else {
@@ -156,11 +150,9 @@ fn read_meta_xml(
                             book.set_title(txt.unescape()?.deref());
                         }
                         "dc:creator" => {
-                            println!("dc:creator text");
                             book.set_creator(txt.unescape()?.deref());
                         }
                         "dc:description" => {
-                            println!("dc:description text");
                             book.set_description(txt.unescape()?.deref());
                         }
                         "dc:format" => {
