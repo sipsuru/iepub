@@ -253,6 +253,10 @@ impl EpubNav {
     pub fn push(&mut self, child: EpubNav) {
         self.child.push(child);
     }
+
+    pub fn child(&self) -> &[EpubNav]{
+        &self.child
+    }
 }
 
 ///
@@ -508,6 +512,11 @@ impl EpubBook {
             //     }
             //     f
             // })
+    }
+
+    /// 获取目录
+    pub fn nav(&self)->&[EpubNav] {
+        &self.nav
     }
 
     pub fn set_cover(&mut self, cover: EpubAssets) {

@@ -1,11 +1,15 @@
 use std::{
-    collections::HashMap, io::{Read, Seek}, ops::Deref
+    collections::HashMap,
+    io::{Read, Seek},
+    ops::Deref,
 };
 
 use common::EpubItem;
 use quick_xml::events::BytesStart;
 
-use crate::{EpubAssets, EpubBook, EpubError, EpubHtml, EpubMetaData, EpubReaderTrait, EpubResult};
+use crate::{
+    EpubAssets, EpubBook, EpubError, EpubHtml, EpubMetaData, EpubNav, EpubReaderTrait, EpubResult,
+};
 
 macro_rules! invalid {
     ($x:tt) => {
@@ -119,22 +123,19 @@ fn read_meta_xml(
                     }
                 }
             }
-            Ok(Event::Empty(e)) => {
-
-                match e.name().as_ref() {
-                    b"meta" => {
-                        if parent.len() != 2 || parent[1] != "metadata" {
-                            return invalid!("not valid opf meta empty");
-                        } else {
-                            let meta = create_meta(&e);
-                            if let Ok(m) = meta {
-                                book.add_meta(m);
-                            }
+            Ok(Event::Empty(e)) => match e.name().as_ref() {
+                b"meta" => {
+                    if parent.len() != 2 || parent[1] != "metadata" {
+                        return invalid!("not valid opf meta empty");
+                    } else {
+                        let meta = create_meta(&e);
+                        if let Ok(m) = meta {
+                            book.add_meta(m);
                         }
                     }
-                    _ => {}
                 }
-            }
+                _ => {}
+            },
             Ok(Event::Text(txt)) => {
                 if !parent.is_empty() {
                     match parent[parent.len() - 1].as_str() {
@@ -432,6 +433,133 @@ fn read_opf_xml(xml: &str, book: &mut EpubBook) -> EpubResult<()> {
 
     Ok(())
 }
+fn read_nav_point_xml(
+    reader: &mut quick_xml::reader::Reader<&[u8]>,
+    nav: &mut EpubNav,
+) -> EpubResult<()> {
+    use quick_xml::events::Event;
+    use quick_xml::reader::Reader;
+
+    let mut buf = Vec::new();
+    // 模拟 栈，记录当前的层级
+    let mut parent: Vec<String> = Vec::new();
+    let mut assets: Vec<EpubNav> = Vec::new();
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Eof) => {
+                break;
+            }
+            Ok(Event::Start(e)) => match e.name().as_ref() {
+                b"navLabel" => {
+                    parent.push("navLavel".to_string());
+                }
+                b"text" => {
+                    parent.push("text".to_string());
+                }
+                b"content" => {
+                    if let Ok(src) = e.try_get_attribute("src") {
+                        if let Some(h) = src.map(|f| {
+                            f.unescape_value()
+                                .map_or_else(|_| String::new(), |v| v.to_string())
+                        }) {
+                            nav.set_file_name(&h);
+                        }
+                    }
+                }
+                b"navPoint" => {
+                    // 套娃了
+                    let mut n = EpubNav::default();
+                    read_nav_point_xml(reader, &mut n)?;
+                    nav.child.push(n);
+                }
+                _ => {}
+            },
+            Ok(Event::End(e)) => {
+                let name = String::from_utf8(e.name().as_ref().to_vec())
+                    .map_err(|f| EpubError::Utf8(f))?;
+
+                if name == "navPoint" {
+                    break;
+                }
+
+                if !parent.is_empty() && parent[parent.len() - 1] == name {
+                    parent.remove(parent.len() - 1);
+                }
+            }
+            Ok(Event::Text(e)) => {
+                if parent[parent.len() - 1] == "text" {
+                    nav.set_title(e.unescape()?.deref());
+                }
+            }
+            Err(_e) => {
+                return invalid!("err");
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn read_nav_xml(xml: &str, book: &mut EpubBook) -> EpubResult<()> {
+    use quick_xml::events::Event;
+    use quick_xml::reader::Reader;
+
+    let mut reader = Reader::from_str(xml);
+    let mut config = reader.config_mut();
+    config.trim_text(true);
+
+    let mut buf = Vec::new();
+    // 模拟 栈，记录当前的层级
+    let mut parent: Vec<String> = Vec::new();
+    let mut assets: Vec<EpubNav> = Vec::new();
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Eof) => {
+                break;
+            }
+            Err(_e) => {
+                return invalid!("err");
+            }
+            Ok(Event::Start(e)) => match e.name().as_ref() {
+                b"ncx" => {
+                    parent.push("ncx".to_string());
+                }
+                b"navMap" => {
+                    if parent.len() != 1 || parent[0] != "ncx" {
+                        return invalid!("err nav 1");
+                    }
+                    parent.push("navMap".to_string());
+                }
+                b"navPoint" => {
+                    if parent.len() != 2 || parent[1] != "navMap" {
+                        return invalid!("err nav 2");
+                    }
+                    let mut nav = EpubNav::default();
+                    read_nav_point_xml(&mut reader, &mut nav)?;
+                    assets.push(nav);
+                }
+                _ => {}
+            },
+            Ok(Event::End(e)) => {
+                let name = String::from_utf8(e.name().as_ref().to_vec())
+                    .map_err(|f| EpubError::Utf8(f))?;
+
+                if name == "navMap" {
+                    break;
+                }
+
+                if !parent.is_empty() && parent[parent.len() - 1] == name {
+                    parent.remove(parent.len() - 1);
+                }
+            }
+            _ => {}
+        }
+    }
+    for ele in assets {
+        book.add_nav(ele);
+    }
+    Ok(())
+}
 #[derive(Debug, Clone)]
 struct EpubReader<T> {
     /// 是否懒加载
@@ -470,6 +598,15 @@ impl<T: Read + Seek> crate::EpubReaderTrait for EpubReader<T> {
                 let opf = read_from_zip!(reader, path.as_str());
 
                 read_opf_xml(opf.as_str(), book)?;
+            }
+        }
+        {
+            // 读取导航
+            if reader.by_name("EPUB/toc.ncx").is_ok() {
+                println!("读取目录");
+                let content = read_from_zip!(reader, "EPUB/toc.ncx");
+
+                read_nav_xml(content.as_str(), book)?;
             }
         }
         Ok(())
@@ -535,6 +672,8 @@ impl<T: Read + Seek> EpubReader<T> {
 
 #[cfg(test)]
 mod tests {
+    use common::EpubItem;
+
     use crate::{builder::EpubBuilder, reader::read_from_vec, EpubHtml};
 
     use super::read_from_file;
@@ -613,6 +752,10 @@ html
                 String::from_utf8(a.data().unwrap().to_vec()).unwrap()
             );
         }
+
+        println!("nav ={:?}",nb.nav());
+        assert_eq!(1,nb.nav().len());
+        assert_eq!("0.xhtml",nb.nav()[0].file_name());
 
         // println!("{}",c.data().map(|f|String::from_utf8(f.to_vec())).unwrap().unwrap());
     }
