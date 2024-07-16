@@ -63,10 +63,10 @@ create_command!(
             support_args: 0,
             desc: "提取数据元数据".to_string(),
             opts: vec![
-                OptionDef::create("title", "标题", OptionType::NoParamter),
-                OptionDef::create("author", "作者", OptionType::NoParamter),
-                OptionDef::create("isbn", "isbn", OptionType::NoParamter),
-                OptionDef::create("publisher", "出版社", OptionType::NoParamter),
+                OptionDef::create("title", "标题", OptionType::NoParamter, false),
+                OptionDef::create("author", "作者", OptionType::NoParamter, false),
+                OptionDef::create("isbn", "isbn", OptionType::NoParamter, false),
+                OptionDef::create("publisher", "出版社", OptionType::NoParamter, false),
             ],
         }
     },
@@ -102,12 +102,7 @@ create_command!(
                 //     key: String::from("o"),
                 //     _type: OptionType::String,
                 // },
-                arg::OptionDef {
-                    // 覆盖文件
-                    key: String::from("y"),
-                    _type: arg::OptionType::NoParamter,
-                    desc: "是否覆盖输出文件".to_string(),
-                },
+                OptionDef::create("y", "是否覆盖输出文件", OptionType::NoParamter, false),
             ],
         }
     },
@@ -145,8 +140,9 @@ create_command!(
             support_args: 0,
             opts: vec![OptionDef::create(
                 "s",
-                "输出导航对应文件名",
+                "输出目录对应文件名",
                 OptionType::NoParamter,
+                false,
             )],
         }
     },
@@ -199,9 +195,9 @@ create_command!(
         desc: "提取图片".to_string(),
         support_args: 0,
         opts: vec![
-            OptionDef::create("d", "输出目录", OptionType::String),
+            OptionDef::create("d", "输出目录", OptionType::String,true),
             OptionDef::over(),
-            OptionDef::create("p", "文件名前缀，例如-d out -p image,文件将会被写入到 out/image01.jpg，原有文件名将会被忽略", OptionType::String),
+            OptionDef::create("p", "文件名前缀，例如-d out -p image,文件将会被写入到 out/image01.jpg，原有文件名将会被忽略", OptionType::String,false),
         ],
     }
     },
@@ -278,24 +274,26 @@ create_command!(
 
 create_command!(
     GetChapter,
-    "get-name",
+    "get-chapter",
     {
         arg::CommandOptionDef {
             command: "get-chapter".to_string(),
             desc: "提取章节".to_string(),
             support_args: 0,
             opts: vec![
-                OptionDef::create("c", "文件路径，可以从nav命令中获取", OptionType::Array),
+                OptionDef::create("c", "文件路径，可以从nav命令中获取", OptionType::Array,true),
                 OptionDef::create(
                     "d",
                     "输出目录，没有该参数则直接输出到终端",
                     OptionType::String,
+                    false
                 ),
                 OptionDef::over(),
                 OptionDef::create(
                     "b",
                     "只输出body部分，否则输出完整的xhtml(可能跟原文有所区别)",
                     OptionType::NoParamter,
+                    false
                 ),
             ],
         }

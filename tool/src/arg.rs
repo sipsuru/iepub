@@ -14,12 +14,26 @@
 //! 子命令及其参数可以有多个，将会同时执行
 //!
 
+macro_rules! parse_err {
+    ($($arg:tt)*) => {{
+        #[cfg(not(test))]
+        {
+            eprintln!($($arg)*);
+            std::process::exit(1);
+        }
+        #[cfg(test)]
+        panic!($($arg)*);
+        
+    }};
+
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct ArgOption {
     pub(crate) key: String,
     pub(crate) value: Option<String>,
     /// array 时填充该值
-    pub(crate) values :Option<Vec<String>>
+    pub(crate) values: Option<Vec<String>>,
 }
 #[derive(Debug, Default)]
 pub(crate) struct ArgOptionGroup {
@@ -59,18 +73,21 @@ pub(crate) struct OptionDef {
     /// 参数类型，
     pub(crate) _type: OptionType,
     pub(crate) desc: String,
+    /// 是否必需
+    pub(crate) required: bool,
 }
 impl OptionDef {
-    pub(crate) fn create(key:&str,desc:&str,t:OptionType)->Self{
-        OptionDef{
-            key:key.to_string(),
-            desc:desc.to_string(),
-            _type:t
+    pub(crate) fn create(key: &str, desc: &str, t: OptionType, required: bool) -> Self {
+        OptionDef {
+            key: key.to_string(),
+            desc: desc.to_string(),
+            _type: t,
+            required,
         }
     }
 
-    pub(crate) fn over()->Self{
-        OptionDef::create("y", "覆盖已存在文件", OptionType::NoParamter)
+    pub(crate) fn over() -> Self {
+        OptionDef::create("y", "覆盖已存在文件", OptionType::NoParamter, false)
     }
 }
 
@@ -91,15 +108,13 @@ pub(crate) struct CommandOptionDef {
 
 // fn get_option_def(key: &str, def: &[OptionDef]) -> Option<OptionDef> {}
 
-
 /// 处理字符串，去除可能存在的引号
-fn trim_arg(value:String)->String {
-
+fn trim_arg(value: String) -> String {
     if value.starts_with("\"") && value.ends_with("\"") {
-        return String::from(&value[1..value.len()-1]);
+        return String::from(&value[1..value.len() - 1]);
     }
     if value.starts_with("'") && value.ends_with("'") {
-        return String::from(&value[1..value.len()-1]);
+        return String::from(&value[1..value.len() - 1]);
     }
     // 还有转义之类的，这里不考虑了，实在写不完了
     value
@@ -168,7 +183,7 @@ pub(crate) fn parse_arg(
                             });
                         continue;
                     }
-                    panic!(
+                    parse_err!(
                         "unsupport args {} for command {}",
                         ele,
                         current_command.unwrap().command
@@ -205,7 +220,7 @@ pub(crate) fn parse_arg(
                     continue;
                 }
             } else {
-                panic!("unsupport args {}", ele);
+                parse_err!("unsupport args {}", ele);
             }
         } else if current.is_some() {
             // 解析当前的参数
@@ -217,14 +232,19 @@ pub(crate) fn parse_arg(
                         rv.get_mut(index).unwrap().value = Some(trim_arg(ele));
                     }
                 }
-                OptionType::Array=>{
+                OptionType::Array => {
                     let v = get_current_opts(&mut arg, current, current_command);
                     if let Some(rv) = v {
                         let index = rv.len() - 1;
-                        if rv.get_mut(index).unwrap().values.is_none(){
+                        if rv.get_mut(index).unwrap().values.is_none() {
                             rv.get_mut(index).unwrap().values = Some(vec![trim_arg(ele)]);
-                        }else {
-                            rv.get_mut(index).unwrap().values.as_mut().unwrap().push(trim_arg(ele));
+                        } else {
+                            rv.get_mut(index)
+                                .unwrap()
+                                .values
+                                .as_mut()
+                                .unwrap()
+                                .push(trim_arg(ele));
                         }
                     }
                 }
@@ -236,7 +256,7 @@ pub(crate) fn parse_arg(
             let index = arg.group.len() - 1;
             let group = arg.group.get_mut(index).unwrap();
             if (group.args.len() as i32) == current_command.unwrap().support_args {
-                panic!(
+                parse_err!(
                     "arg count mush less than {}",
                     current_command.unwrap().support_args
                 )
@@ -253,7 +273,86 @@ pub(crate) fn parse_arg(
                     args: Vec::new(),
                 })
             } else {
-                panic!("unsupported command or arg {}", ele);
+                parse_err!("unsupported command or arg {}", ele);
+            }
+        }
+    }
+
+    // 校验参数
+    if arg.opts.iter().find(|f| f.key == "h").is_none() {
+        for ele in &option_def {
+            if ele.required {
+                let a = arg.opts.iter().find(|s| s.key == ele.key);
+                if a.is_none() {
+                    parse_err!("grobal arg -{} is required", ele.key);
+                } else {
+                    match ele._type {
+                        OptionType::Array => {
+                            if !a
+                                .unwrap()
+                                .values
+                                .as_ref()
+                                .map(|f| !f.is_empty())
+                                .unwrap_or(false)
+                            {
+                                parse_err!("grobal arg -{} value is required", ele.key);
+                            }
+                        }
+                        OptionType::String => {
+                            if a.unwrap().value.as_ref().is_none() {
+                                parse_err!("grobal arg -{} value is required", ele.key);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+
+    for ele in &command_option_def {
+        let group = arg.group.iter().find(|f| f.command == ele.command);
+        if group.is_none() {
+            continue;
+        }
+        if group.unwrap().opts.iter().find(|f| f.key == "h").is_some() {
+            continue;
+        }
+
+        for opt in &ele.opts {
+            if opt.required {
+                let a = group.unwrap().opts.iter().find(|s| s.key == opt.key);
+                if a.is_none() {
+                    parse_err!("command {} arg -{} is required", ele.command, opt.key);
+                } else {
+                    match opt._type {
+                        OptionType::Array => {
+                            if !a
+                                .unwrap()
+                                .values
+                                .as_ref()
+                                .map(|f| !f.is_empty())
+                                .unwrap_or(false)
+                            {
+                                parse_err!(
+                                    "command {} arg -{} value is required",
+                                    ele.command,
+                                    opt.key
+                                );
+                            }
+                        }
+                        OptionType::String => {
+                            if a.unwrap().value.is_none() {
+                                parse_err!(
+                                    "command {} arg -{} value is required",
+                                    ele.command,
+                                    opt.key
+                                );
+                            }
+                        }
+                        _ => {}
+                    }
+                }
             }
         }
     }
@@ -263,7 +362,10 @@ pub(crate) fn parse_arg(
 
 #[cfg(test)]
 mod tests {
-    use crate::arg::{self, OptionDef, OptionType};
+    use crate::{
+        arg::{self, OptionDef, OptionType},
+        command::{BookInfoGetter, GetChapter, GetCover, NavScanner},
+    };
 
     use super::parse_arg;
 
@@ -274,42 +376,34 @@ mod tests {
                 key: String::from("i"),
                 _type: OptionType::String,
                 desc: "输入文件，epub".to_string(),
+                required: false,
             },
             OptionDef {
                 // 覆盖文件
                 key: String::from("y"),
                 _type: OptionType::NoParamter,
                 desc: "全局覆盖输出文件选项".to_string(),
+                required: false,
             },
             OptionDef {
                 // 日志输出
                 key: String::from("l"),
                 _type: OptionType::NoParamter,
                 desc: "打开终端日志输出".to_string(),
+                required: false,
             },
         ]
     }
     /// 支持的子命令
     fn create_command_option_def() -> Vec<arg::CommandOptionDef> {
-        vec![arg::CommandOptionDef {
-            command: String::from("get-cover"),
-            desc: "提取电子书封面, 例如get-cover 1.jpg，输出到1.jpg".to_string(),
-            support_args: -1,
-            opts: vec![
-                OptionDef {
-                    key: String::from("o"),
-                    _type: OptionType::String,
-                    desc: "输出文件名".to_string(),
-                },
-                OptionDef {
-                    // 覆盖文件
-                    key: String::from("y"),
-                    _type: OptionType::NoParamter,
-                    desc: "是否覆盖输出文件".to_string(),
-                },
-            ],
-        }]
+        vec![
+            GetCover::def(),
+            BookInfoGetter::def(),
+            NavScanner::def(),
+            GetChapter::def(),
+        ]
     }
+
     #[test]
     fn test_parse_args() {
         let mut m = format!(
@@ -319,7 +413,6 @@ mod tests {
                     "-i".to_string(),
                     "fis".to_string(),
                     "get-cover".to_string(),
-                    "-o".to_string(),
                     "cover.jpg".to_string()
                 ],
                 create_option_def(),
@@ -328,7 +421,7 @@ mod tests {
             .unwrap()
         );
         assert_eq!(
-            r#"Arg { opts: [ArgOption { key: "i", value: Some("fis") }], group: [ArgOptionGroup { command: "get-cover", opts: [ArgOption { key: "o", value: Some("cover.jpg") }], args: [] }] }"#,
+            r#"Arg { opts: [ArgOption { key: "i", value: Some("fis"), values: None }], group: [ArgOptionGroup { command: "get-cover", opts: [], args: ["cover.jpg"] }] }"#,
             m
         );
 
@@ -339,10 +432,8 @@ mod tests {
                     "-i".to_string(),
                     "fis".to_string(),
                     "get-cover".to_string(),
-                    "-o".to_string(),
                     "cover.jpg".to_string(),
                     "get-cover".to_string(),
-                    "-o".to_string(),
                     "cover.jpg".to_string(),
                 ],
                 create_option_def(),
@@ -352,8 +443,8 @@ mod tests {
         );
 
         assert_eq!(
-            r#"Arg { opts: [ArgOption { key: "i", value: Some("fis") }], group: [ArgOptionGroup { command: "get-cover", opts: [ArgOption { key: "o", value: Some("cover.jpg") }, ArgOption { key: "o", value: Some("cover.jpg") }], args: ["get-cover"] }] }"#,
-            m
+            "Arg { opts: [ArgOption { key: \"i\", value: Some(\"fis\"), values: None }], group: [ArgOptionGroup { command: \"get-cover\", opts: [], args: [\"cover.jpg\", \"get-cover\", \"cover.jpg\"] }] }"
+            ,m
         );
 
         m = format!(
@@ -361,10 +452,7 @@ mod tests {
             parse_arg(
                 vec![
                     "get-cover".to_string(),
-                    "-o".to_string(),
                     "cover.jpg".to_string(),
-                    "get-cover".to_string(),
-                    "-o".to_string(),
                     "cover.jpg".to_string(),
                 ],
                 create_option_def(),
@@ -374,8 +462,8 @@ mod tests {
         );
 
         assert_eq!(
-            r#"Arg { opts: [], group: [ArgOptionGroup { command: "get-cover", opts: [ArgOption { key: "o", value: Some("cover.jpg") }, ArgOption { key: "o", value: Some("cover.jpg") }], args: ["get-cover"] }] }"#,
-            m
+            "Arg { opts: [], group: [ArgOptionGroup { command: \"get-cover\", opts: [], args: [\"cover.jpg\", \"cover.jpg\"] }] }"
+            ,m
         );
 
         m = format!(
@@ -383,12 +471,9 @@ mod tests {
             parse_arg(
                 vec![
                     "get-cover".to_string(),
-                    "-o".to_string(),
-                    "cover.jpg".to_string(),
-                    "get-cover".to_string(),
-                    "-o".to_string(),
-                    "cover.jpg".to_string(),
                     "-y".to_string(),
+                    "cover.jpg".to_string(),
+                    
                 ],
                 create_option_def(),
                 create_command_option_def()
@@ -396,8 +481,8 @@ mod tests {
             .unwrap()
         );
         assert_eq!(
-            r#"Arg { opts: [], group: [ArgOptionGroup { command: "get-cover", opts: [ArgOption { key: "o", value: Some("cover.jpg") }, ArgOption { key: "o", value: Some("cover.jpg") }, ArgOption { key: "y", value: None }], args: ["get-cover"] }] }"#,
-            m
+            "Arg { opts: [], group: [ArgOptionGroup { command: \"get-cover\", opts: [ArgOption { key: \"y\", value: None, values: None }], args: [\"cover.jpg\"] }] }"
+            ,m
         );
 
         m = format!(
@@ -411,8 +496,39 @@ mod tests {
         );
 
         assert_eq!(
-            r#"Arg { opts: [ArgOption { key: "h", value: None }], group: [] }"#,
-            m
+            "Arg { opts: [ArgOption { key: \"h\", value: None, values: None }], group: [] }"
+            ,m
         );
+
+        m = format!(
+            "{:?}",
+            parse_arg(
+                vec![
+                    "-l",
+                    "-i",
+                    "/app/魔女之旅.epub",
+                    "get-info",
+                    "-title",
+                    "-author",
+                    "-title",
+                    "-isbn",
+                    "-publisher",
+                    "nav",
+                    "-s",
+                    "get-chapter",
+                    "-c",
+                    "022.第二十一卷/0290.xhtml",
+                    "-b"
+                ]
+                .iter()
+                .map(|f| f.to_string())
+                .collect(),
+                create_option_def(),
+                create_command_option_def()
+            )
+            .unwrap()
+        );
+
+        println!("m={:?}",m);
     }
 }

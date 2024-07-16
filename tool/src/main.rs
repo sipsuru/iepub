@@ -3,9 +3,9 @@
 //! tool -i file.epub get-cover 1.jpg
 //!
 
-use std::{env, fs, io::Write};
+use std::env;
 
-use arg::{ArgOption, ArgOptionGroup, OptionDef, OptionType};
+use arg::{ArgOption, OptionDef, OptionType};
 use command::{BookInfoGetter, GetChapter, GetCover, GetImage, NavScanner};
 use iepub::{reader::read_from_file, EpubBook, EpubError};
 
@@ -16,23 +16,10 @@ mod log;
 /// 支持的全局参数
 fn create_option_def() -> Vec<OptionDef> {
     vec![
-        OptionDef {
-            key: String::from("i"),
-            _type: OptionType::String,
-            desc: "输入文件，epub".to_string(),
-        },
-        OptionDef {
-            // 覆盖文件
-            key: String::from("y"),
-            _type: OptionType::NoParamter,
-            desc: "全局覆盖输出文件选项".to_string(),
-        },
-        OptionDef {
-            // 日志输出
-            key: String::from("l"),
-            _type: OptionType::NoParamter,
-            desc: "打开终端日志输出".to_string(),
-        },
+        OptionDef::create("i", "输入文件，epub", OptionType::String, true),
+        OptionDef::over(),
+        // 日志输出
+        OptionDef::create("l", "打开终端日志输出", OptionType::NoParamter, false),
     ]
 }
 
@@ -58,7 +45,7 @@ macro_rules! register_command {
 }
 
 // 注册子命令
-register_command!(GetCover,BookInfoGetter,NavScanner,GetImage,GetChapter);
+register_command!(GetCover, BookInfoGetter, NavScanner, GetImage, GetChapter);
 
 trait Command {
     ///
