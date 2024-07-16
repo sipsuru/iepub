@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 extern crate common;
 extern crate derive;
-use common::{epub_base_field, EpubItem, LinkRel};
+use common::{epub_base_field,  LinkRel};
 use html::{get_html_info, to_html, to_nav_html, to_opf, to_toc_xml};
 
 pub mod builder;
@@ -54,14 +54,8 @@ impl Debug for EpubHtml {
 }
 
 impl EpubHtml {
-    fn data(&mut self) -> Option<&[u8]> {
+    pub fn data(&mut self) -> Option<&[u8]> {
         let mut f = String::from(self._file_name.as_str());
-        println!(
-            "{} {} {}",
-            self._data.is_none(),
-            self.reader.is_some(),
-            f.is_empty()
-        );
         if self._data.is_none() && self.reader.is_some() && !f.is_empty() {
             // 可读
             if !f.starts_with(common::EPUB) {
@@ -78,6 +72,12 @@ impl EpubHtml {
             }
         }
         self._data.as_ref().map(|f| f.as_slice())
+    }
+
+    pub fn format(&mut self)->Option<String>{
+        self.data();
+        Some(to_html(self))
+        
     }
 
     ///

@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::{f32::consts::E, fmt::format, io::Write};
 
 use crate::{
     arg::{self, ArgOption, CommandOptionDef, OptionDef, OptionType},
@@ -6,14 +6,12 @@ use crate::{
 };
 use iepub::{EpubBook, EpubError, EpubNav};
 // 是否覆盖文件
-fn is_overiade(arg: &[arg::ArgOption]) -> bool {
-    for ele in arg {
-        if ele.key == "y" {
-            return true;
-        }
-    }
-
-    false
+fn is_overiade(global_opts: &[arg::ArgOption], opts: &[arg::ArgOption]) -> bool {
+    global_opts
+        .iter()
+        .find(|s| s.key == "y")
+        .map_or(false, |_| true)
+        || opts.iter().find(|s| s.key == "y").map_or(false, |_| true)
 }
 
 ///
@@ -107,30 +105,18 @@ impl Command for GetCover {
         args: &[String],
     ) {
         let cover = book.cover().unwrap();
-
-        #[inline]
-        fn write_file(path: &str, data: &[u8]) {
-            let mut fs = std::fs::File::create(path).unwrap();
-            fs.write_all(data).unwrap();
-        }
-
+        let is_over = is_overiade(global_opts, opts);
         for path in args {
-            if std::fs::File::open(path).is_ok() {
-                msg!("file {} has exist", path.as_str());
-                // 文件已存在，判断有没有覆盖参数，
-                if is_overiade(global_opts) || is_overiade(&opts) {
-                    write_file(path, cover.data().unwrap());
-                } else if get_single_input("Override file？(y/n)")
+            if std::path::Path::new(&path).exists()
+                && !is_over
+                && get_single_input("Override file？(y/n)")
                     .unwrap()
                     .to_lowercase()
-                    == "y"
-                {
-                    // 询问
-                    write_file(path, cover.data().unwrap());
-                }
-            } else {
-                write_file(path, cover.data().unwrap());
+                    != "y"
+            {
+                continue;
             }
+            write_file(path, cover.data().unwrap());
         }
     }
 }
@@ -138,22 +124,30 @@ impl Command for GetCover {
 #[derive(Default)]
 pub(crate) struct NavScanner;
 impl NavScanner {
-    pub(crate) fn def()->CommandOptionDef {
-        CommandOptionDef{
-            command:"nav".to_string(),
-            desc:"导航".to_string(),
-            support_args:0,
-            opts:Vec::new()
+    pub(crate) fn def() -> CommandOptionDef {
+        CommandOptionDef {
+            command: "nav".to_string(),
+            desc: "导航".to_string(),
+            support_args: 0,
+            opts: vec![OptionDef::create(
+                "s",
+                "输出导航对应文件名",
+                OptionType::NoParamter,
+            )],
         }
     }
-    fn print_nav(&self,dec:i32,nav:&EpubNav){
+    fn print_nav(&self, dec: i32, nav: &EpubNav, print_href: bool) {
         self.print_dec(dec);
-        println!("{}",nav.title());
+        println!(
+            "{} href=[{}]",
+            nav.title(),
+            if print_href { nav.file_name() } else { "" }
+        );
         for ele in nav.child() {
-            self.print_nav(dec+1, ele);
+            self.print_nav(dec + 2, ele, print_href);
         }
     }
-    fn print_dec(&self,dec:i32){
+    fn print_dec(&self, dec: i32) {
         for _ in 0..dec {
             print!(" ");
         }
@@ -164,23 +158,228 @@ impl Command for NavScanner {
         "nav".to_string()
     }
 
-
     fn exec(
         &self,
         book: &mut EpubBook,
         _global_opts: &[ArgOption],
-        _opts: &[ArgOption],
+        opts: &[ArgOption],
         _args: &[String],
     ) {
-
-        /// 缩进
-        let dec = 0;
-
-        println!("{:?}",book.nav());
+        let print_href = opts.iter().find(|s| s.key == "s").map_or(false, |_| true);
         for ele in book.nav() {
-            self.print_nav(0, ele);
+            self.print_nav(0, ele, print_href);
         }
+    }
+}
 
+#[derive(Default)]
+pub(crate) struct GetImage;
+impl GetImage {
+    pub(crate) fn def() -> arg::CommandOptionDef {
+        arg::CommandOptionDef {
+            command: "get-image".to_string(),
+            desc: "提取图片".to_string(),
+            support_args: 0,
+            opts: vec![
+                OptionDef::create("d", "输出目录", OptionType::String),
+                OptionDef::over(),
+                OptionDef::create("p", "文件名前缀，例如-d out -p image,文件将会被写入到 out/image01.jpg，原有文件名将会被忽略", OptionType::String),
+            ],
+        }
+    }
+}
 
+fn write_file(path: &str, data: &[u8]) {
+    let mut fs = std::fs::File::options()
+        .truncate(true)
+        .create(true)
+        .write(true)
+        .open(path)
+        .unwrap();
+    fs.write_all(data).unwrap();
+}
+
+impl Command for GetImage {
+    fn name(&self) -> String {
+        "get-image".to_string()
+    }
+
+    fn exec(
+        &self,
+        book: &mut EpubBook,
+        global_opts: &[ArgOption],
+        opts: &[ArgOption],
+        _args: &[String],
+    ) {
+        let dir_o = opts
+            .iter()
+            .find(|s| s.key == "d")
+            .and_then(|f| f.value.as_ref());
+        let is_over = is_overiade(global_opts, opts);
+
+        let prefix = opts
+            .iter()
+            .find(|s| s.key == "p")
+            .and_then(|f| f.value.as_ref());
+        let mut file_size = 1;
+        if let Some(dir) = dir_o {
+            for ele in book.assets_mut() {
+                let name = ele.file_name().to_lowercase();
+                if name.ends_with(".jpg")
+                    || name.ends_with(".jpeg")
+                    || name.ends_with(".gif")
+                    || name.ends_with(".png")
+                    || name.ends_with(".webp")
+                    || name.ends_with(".svg")
+                {
+                    let mut file = format!("{dir}/{}", ele.file_name());
+                    if let Some(p) = prefix {
+                        // 有前缀
+                        file = format!(
+                            "{dir}/{p}{}{}",
+                            file_size,
+                            &name[name.rfind(".").unwrap_or(0)..]
+                        );
+                        file_size += 1;
+                    }
+                    let n_dir = &file[0..file.rfind("/").unwrap_or(0)];
+                    if !std::path::Path::new(n_dir).exists() {
+                        msg!("creating dir {}", n_dir);
+                        // 创建目录
+                        match std::fs::create_dir_all(n_dir) {
+                            Ok(_) => {}
+                            Err(e) => {
+                                eprintln!("create dir {} fail, because {}", n_dir, e.to_string());
+                                continue;
+                            }
+                        };
+                    }
+
+                    // 判断文件是否存在
+
+                    if std::path::Path::new(&file).exists()
+                        && !is_over
+                        && get_single_input("Override file？(y/n)")
+                            .unwrap()
+                            .to_lowercase()
+                            != "y"
+                    {
+                        continue;
+                    }
+                    msg!("writing file to {}", file);
+                    // 写入文件
+                    write_file(&file, ele.data().unwrap());
+                }
+            }
+        }
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct GetChapter;
+impl GetChapter {
+    pub(crate) fn def() -> arg::CommandOptionDef {
+        arg::CommandOptionDef {
+            command: "get-chapter".to_string(),
+            desc: "提取章节".to_string(),
+            support_args: 0,
+            opts: vec![
+                OptionDef::create("c", "文件路径，可以从nav命令中获取", OptionType::Array),
+                OptionDef::create(
+                    "d",
+                    "输出目录，没有该参数则直接输出到终端",
+                    OptionType::String,
+                ),
+                OptionDef::over(),
+                OptionDef::create(
+                    "b",
+                    "只输出body部分，否则输出完整的xhtml(可能跟原文有所区别)",
+                    OptionType::NoParamter,
+                ),
+            ],
+        }
+    }
+}
+
+impl Command for GetChapter {
+    fn name(&self) -> String {
+        "get-chapter".to_string()
+    }
+
+    fn exec(
+        &self,
+        book: &mut EpubBook,
+        global_opts: &[ArgOption],
+        opts: &[ArgOption],
+        _args: &[String],
+    ) {
+        let dir = opts
+            .iter()
+            .find(|f| f.key == "d")
+            .and_then(|f| f.value.as_ref());
+
+        let chaps: Vec<&String> = opts
+            .iter()
+            .filter(|s| s.key == "c" && s.values.is_some())
+            .map(|f| f.values.as_ref().unwrap())
+            .flat_map(|f| f)
+            .collect();
+
+        let is_over = is_overiade(global_opts, opts);
+
+        let print_body = opts
+            .iter()
+            .find(|f| f.key == "b")
+            .is_some();
+
+        for ele in chaps {
+            if let Some(chap) = book.get_chapter(&ele) {
+                if let Some(d) = dir {
+                    let mut p_dir: std::path::PathBuf =
+                        std::path::Path::new(&d).join(chap.file_name());
+                    p_dir.pop(); // 获取在文件所在目录了
+
+                    if !p_dir.exists() {
+                        msg!("creating dir {:?}", p_dir);
+                        match std::fs::create_dir_all(&p_dir) {
+                            Ok(_) => {}
+                            Err(e) => {
+                                eprintln!("mkdir {:?} fail, because {}", p_dir, e.to_string());
+                                continue;
+                            }
+                        };
+                    }
+                    let file = format!("{}/{}", d, chap.file_name());
+
+                    if std::path::Path::new(&file).exists()
+                        && !is_over
+                        && get_single_input("Override file？(y/n)")
+                            .unwrap()
+                            .to_lowercase()
+                            != "y"
+                    {
+                        continue;
+                    }
+                    if print_body {
+                        write_file(file.as_str(), chap.data().unwrap())
+                    } else {
+                        let d = chap.format().unwrap_or("".to_string());
+                        write_file(file.as_str(), d.as_bytes());
+                    }
+                } else {
+                    // 直接输出到终端
+                    println!(
+                        "{}",
+                        if print_body {
+                            String::from_utf8(chap.data().unwrap().to_vec()).unwrap()
+                        } else {
+                            chap.format().unwrap_or("".to_string())
+                        }
+                    );
+                }
+            } else {
+                eprintln!("chap {} not exists", ele);
+            }
+        }
     }
 }

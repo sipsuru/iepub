@@ -18,6 +18,8 @@
 pub(crate) struct ArgOption {
     pub(crate) key: String,
     pub(crate) value: Option<String>,
+    /// array 时填充该值
+    pub(crate) values :Option<Vec<String>>
 }
 #[derive(Debug, Default)]
 pub(crate) struct ArgOptionGroup {
@@ -66,6 +68,10 @@ impl OptionDef {
             _type:t
         }
     }
+
+    pub(crate) fn over()->Self{
+        OptionDef::create("y", "覆盖已存在文件", OptionType::NoParamter)
+    }
 }
 
 #[derive(Debug, Default)]
@@ -84,6 +90,20 @@ pub(crate) struct CommandOptionDef {
 }
 
 // fn get_option_def(key: &str, def: &[OptionDef]) -> Option<OptionDef> {}
+
+
+/// 处理字符串，去除可能存在的引号
+fn trim_arg(value:String)->String {
+
+    if value.starts_with("\"") && value.ends_with("\"") {
+        return String::from(&value[1..value.len()-1]);
+    }
+    if value.starts_with("'") && value.ends_with("'") {
+        return String::from(&value[1..value.len()-1]);
+    }
+    // 还有转义之类的，这里不考虑了，实在写不完了
+    value
+}
 
 pub(crate) fn parse_arg(
     args: Vec<String>,
@@ -133,6 +153,7 @@ pub(crate) fn parse_arg(
                     group.opts.push(ArgOption {
                         key: key.to_string(),
                         value: None,
+                        ..Default::default()
                     })
                 } else {
                     if ele == "-h" {
@@ -141,6 +162,7 @@ pub(crate) fn parse_arg(
                                 f.push(ArgOption {
                                     key: "h".to_string(),
                                     value: None,
+                                    ..Default::default()
                                 });
                                 true
                             });
@@ -168,6 +190,7 @@ pub(crate) fn parse_arg(
                 arg.opts.push(ArgOption {
                     key: key.to_string(),
                     value: None,
+                    ..Default::default()
                 })
             } else if ele == "-h" {
                 if ele == "-h" {
@@ -175,6 +198,7 @@ pub(crate) fn parse_arg(
                         f.push(ArgOption {
                             key: "h".to_string(),
                             value: None,
+                            ..Default::default()
                         });
                         true
                     });
@@ -190,7 +214,18 @@ pub(crate) fn parse_arg(
                     let v = get_current_opts(&mut arg, current, current_command);
                     if let Some(rv) = v {
                         let index = rv.len() - 1;
-                        rv.get_mut(index).unwrap().value = Some(ele);
+                        rv.get_mut(index).unwrap().value = Some(trim_arg(ele));
+                    }
+                }
+                OptionType::Array=>{
+                    let v = get_current_opts(&mut arg, current, current_command);
+                    if let Some(rv) = v {
+                        let index = rv.len() - 1;
+                        if rv.get_mut(index).unwrap().values.is_none(){
+                            rv.get_mut(index).unwrap().values = Some(vec![trim_arg(ele)]);
+                        }else {
+                            rv.get_mut(index).unwrap().values.as_mut().unwrap().push(trim_arg(ele));
+                        }
                     }
                 }
                 _ => {}
@@ -199,7 +234,7 @@ pub(crate) fn parse_arg(
         } else if current_command.map_or_else(|| false, |com| com.support_args != 0) {
             // 正在解析子命令，且子命令支持arg
             let index = arg.group.len() - 1;
-            let mut group = arg.group.get_mut(index).unwrap();
+            let group = arg.group.get_mut(index).unwrap();
             if (group.args.len() as i32) == current_command.unwrap().support_args {
                 panic!(
                     "arg count mush less than {}",
@@ -207,7 +242,7 @@ pub(crate) fn parse_arg(
                 )
             }
 
-            group.args.push(ele);
+            group.args.push(trim_arg(ele));
         } else {
             // 可能是子命令
             current_command = command_option_def.iter().find(|f| f.command == ele);

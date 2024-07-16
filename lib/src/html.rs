@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use common::EpubItem;
 use quick_xml::events::Event;
 
 use crate::{EpubBook, EpubError, EpubHtml, EpubNav, EpubResult};
@@ -42,7 +41,6 @@ static XHTML_5: &str = r#"
 /// </html>
 ///
 ///
-
 ///
 /// 生成html
 pub(crate) fn to_html(chap: &mut EpubHtml) -> String {
@@ -338,7 +336,7 @@ fn write_metadata(
 
 pub(crate) fn do_to_opf(book: &EpubBook, generator: &str) -> EpubResult<String> {
     let vue: Vec<u8> = Vec::new();
-    let mut xml = quick_xml::Writer::new(std::io::Cursor::new(vue));
+    let mut xml: quick_xml::Writer<std::io::Cursor<Vec<u8>>> = quick_xml::Writer::new(std::io::Cursor::new(vue));
     use quick_xml::events::*;
 
     xml.write_event(Event::Decl(BytesDecl::new("1.0", Some("utf-8"), None)))?;

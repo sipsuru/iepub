@@ -1,10 +1,8 @@
 use std::{
-    collections::HashMap,
     io::{Read, Seek},
     ops::Deref,
 };
 
-use common::EpubItem;
 use quick_xml::events::BytesStart;
 
 use crate::{
@@ -443,7 +441,6 @@ fn read_nav_point_xml(
     let mut buf = Vec::new();
     // 模拟 栈，记录当前的层级
     let mut parent: Vec<String> = Vec::new();
-    let mut assets: Vec<EpubNav> = Vec::new();
     loop {
         match reader.read_event_into(&mut buf) {
             Ok(Event::Eof) => {
@@ -507,6 +504,7 @@ fn read_nav_xml(xml: &str, book: &mut EpubBook) -> EpubResult<()> {
     let mut reader = Reader::from_str(xml);
     let mut config = reader.config_mut();
     config.trim_text(true);
+    config.expand_empty_elements = true;
 
     let mut buf = Vec::new();
     // 模拟 栈，记录当前的层级
@@ -753,9 +751,9 @@ html
             );
         }
 
-        println!("nav ={:?}",nb.nav());
-        assert_eq!(1,nb.nav().len());
-        assert_eq!("0.xhtml",nb.nav()[0].file_name());
+        println!("nav ={:?}", nb.nav());
+        assert_eq!(1, nb.nav().len());
+        assert_eq!("0.xhtml", nb.nav()[0].file_name());
 
         // println!("{}",c.data().map(|f|String::from_utf8(f.to_vec())).unwrap().unwrap());
     }

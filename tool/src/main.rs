@@ -6,7 +6,7 @@
 use std::{env, fs, io::Write};
 
 use arg::{ArgOption, ArgOptionGroup, OptionDef, OptionType};
-use command::{BookInfoGetter, GetCover, NavScanner};
+use command::{BookInfoGetter, GetChapter, GetCover, GetImage, NavScanner};
 use iepub::{reader::read_from_file, EpubBook, EpubError};
 
 mod arg;
@@ -35,18 +35,30 @@ fn create_option_def() -> Vec<OptionDef> {
         },
     ]
 }
-/// 支持的子命令
-fn create_command_option_def() -> Vec<arg::CommandOptionDef> {
-    vec![GetCover::def(), BookInfoGetter::def(), NavScanner::def()]
+
+macro_rules! register_command {
+    ($($cmd_type:ident),+ ) => {
+        fn create_command_option_def() -> Vec<arg::CommandOptionDef> {
+            vec![
+            $(
+            $cmd_type::def(),
+            )*
+            ]
+
+        }
+
+        fn support_command() -> Vec<Box<dyn Command>> {
+            vec![
+                $(
+                    Box::new($cmd_type::default()),
+                )*
+            ]
+        }
+    };
 }
 
-fn support_command() -> Vec<Box<dyn Command>> {
-    vec![
-        Box::new(GetCover::default()),
-        Box::new(BookInfoGetter::default()),
-        Box::new(NavScanner::default()),
-    ]
-}
+// 注册子命令
+register_command!(GetCover,BookInfoGetter,NavScanner,GetImage,GetChapter);
 
 trait Command {
     ///
@@ -82,13 +94,13 @@ fn main() {
         println!("Example: {} -i input.epub get-cover out.jpg", exe_file_name);
         println!("");
         for ele in create_option_def() {
-            println!("-{} {}", ele.key, ele.desc);
+            println!("-{:10} {}", ele.key, ele.desc);
         }
         println!("");
         println!("supported sub command:");
         println!("");
         for ele in create_command_option_def() {
-            println!("{} {}", ele.command, ele.desc);
+            println!("{:20} {}", ele.command, ele.desc);
         }
         return;
     }
@@ -127,7 +139,7 @@ fn main() {
                         }
                     );
                     for ele in &def.opts {
-                        println!("-{} {}", ele.key, ele.desc);
+                        println!("-{:10} {}", ele.key, ele.desc);
                     }
                 }
 
