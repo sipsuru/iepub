@@ -169,11 +169,11 @@ create_command!(
     },
     fn print_nav(&self, dec: i32, nav: &EpubNav, print_href: bool) {
         self.print_dec(dec);
-        println!(
-            "{} href=[{}]",
-            nav.title(),
-            if print_href { nav.file_name() } else { "" }
-        );
+        if print_href {
+            println!("{} href=[{}]", nav.title(), nav.file_name());
+        } else {
+            println!("{}", nav.title());
+        }
         for ele in nav.child() {
             self.print_nav(dec + 2, ele, print_href);
         }
