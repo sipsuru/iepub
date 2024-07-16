@@ -27,11 +27,37 @@ fn get_single_input(message: &str) -> Result<String, EpubError> {
     handle.read_line(&mut buffer)?;
     Ok(buffer)
 }
+/// 创建一个命令，定死了代码基本结构
+macro_rules! create_command {
+    // create_command!(结构体名称, "命令名称",{ arg::CommandOptionDef{} }, exec函数, 额外的成员函数 ),如果没有额外的成员函数，最后也需要以逗号结尾，所以最后部分代码应该是: ,);
+    ($name:ident, $com:expr, $def:block, $exe:item, $($fun:item),*) => {
+        #[derive(Default)]
+        pub(crate) struct $name;
+        impl $name {
+            pub(crate) fn def() -> arg::CommandOptionDef {
+                $def
+            }
 
-#[derive(Default)]
-pub(crate) struct BookInfoGetter;
-impl BookInfoGetter {
-    pub(crate) fn def() -> arg::CommandOptionDef {
+            $($fun)*
+        }
+        impl Command for $name {
+            fn name(&self) -> String {
+                $com.to_string()
+            }
+
+            $exe
+
+        }
+    };
+    // 这里可以省掉最后的逗号，以 ); 结尾即可
+    ($name:ident,$com:expr,$def:block,$exe:item) => {
+        create_command!($name,$com,$def,$exe,);
+    };
+}
+create_command!(
+    BookInfoGetter,
+    "get-info",
+    {
         arg::CommandOptionDef {
             command: "get-info".to_string(),
             support_args: 0,
@@ -43,13 +69,7 @@ impl BookInfoGetter {
                 OptionDef::create("publisher", "出版社", OptionType::NoParamter),
             ],
         }
-    }
-}
-impl Command for BookInfoGetter {
-    fn name(&self) -> String {
-        "get-info".to_string()
-    }
-
+    },
     fn exec(
         &self,
         book: &mut EpubBook,
@@ -67,12 +87,12 @@ impl Command for BookInfoGetter {
             }
         }
     }
-}
+);
 
-#[derive(Default)]
-pub(crate) struct GetCover;
-impl GetCover {
-    pub(crate) fn def() -> arg::CommandOptionDef {
+create_command!(
+    GetCover,
+    "get-cover",
+    {
         arg::CommandOptionDef {
             command: String::from("get-cover"),
             desc: "提取电子书封面, 例如get-cover 1.jpg，输出到1.jpg".to_string(),
@@ -90,13 +110,7 @@ impl GetCover {
                 },
             ],
         }
-    }
-}
-impl Command for GetCover {
-    fn name(&self) -> String {
-        "get-cover".to_string()
-    }
-
+    },
     fn exec(
         &self,
         book: &mut EpubBook,
@@ -118,13 +132,13 @@ impl Command for GetCover {
             }
             write_file(path, cover.data().unwrap());
         }
-    }
-}
+    },
+);
 
-#[derive(Default)]
-pub(crate) struct NavScanner;
-impl NavScanner {
-    pub(crate) fn def() -> CommandOptionDef {
+create_command!(
+    NavScanner,
+    "nav",
+    {
         CommandOptionDef {
             command: "nav".to_string(),
             desc: "导航".to_string(),
@@ -135,29 +149,7 @@ impl NavScanner {
                 OptionType::NoParamter,
             )],
         }
-    }
-    fn print_nav(&self, dec: i32, nav: &EpubNav, print_href: bool) {
-        self.print_dec(dec);
-        println!(
-            "{} href=[{}]",
-            nav.title(),
-            if print_href { nav.file_name() } else { "" }
-        );
-        for ele in nav.child() {
-            self.print_nav(dec + 2, ele, print_href);
-        }
-    }
-    fn print_dec(&self, dec: i32) {
-        for _ in 0..dec {
-            print!(" ");
-        }
-    }
-}
-impl Command for NavScanner {
-    fn name(&self) -> String {
-        "nav".to_string()
-    }
-
+    },
     fn exec(
         &self,
         book: &mut EpubBook,
@@ -169,25 +161,24 @@ impl Command for NavScanner {
         for ele in book.nav() {
             self.print_nav(0, ele, print_href);
         }
-    }
-}
-
-#[derive(Default)]
-pub(crate) struct GetImage;
-impl GetImage {
-    pub(crate) fn def() -> arg::CommandOptionDef {
-        arg::CommandOptionDef {
-            command: "get-image".to_string(),
-            desc: "提取图片".to_string(),
-            support_args: 0,
-            opts: vec![
-                OptionDef::create("d", "输出目录", OptionType::String),
-                OptionDef::over(),
-                OptionDef::create("p", "文件名前缀，例如-d out -p image,文件将会被写入到 out/image01.jpg，原有文件名将会被忽略", OptionType::String),
-            ],
+    },
+    fn print_dec(&self, dec: i32) {
+        for _ in 0..dec {
+            print!(" ");
+        }
+    },
+    fn print_nav(&self, dec: i32, nav: &EpubNav, print_href: bool) {
+        self.print_dec(dec);
+        println!(
+            "{} href=[{}]",
+            nav.title(),
+            if print_href { nav.file_name() } else { "" }
+        );
+        for ele in nav.child() {
+            self.print_nav(dec + 2, ele, print_href);
         }
     }
-}
+);
 
 fn write_file(path: &str, data: &[u8]) {
     let mut fs = std::fs::File::options()
@@ -199,11 +190,21 @@ fn write_file(path: &str, data: &[u8]) {
     fs.write_all(data).unwrap();
 }
 
-impl Command for GetImage {
-    fn name(&self) -> String {
-        "get-image".to_string()
+create_command!(
+    GetImage,
+    "get-image",
+    {
+        arg::CommandOptionDef {
+        command: "get-image".to_string(),
+        desc: "提取图片".to_string(),
+        support_args: 0,
+        opts: vec![
+            OptionDef::create("d", "输出目录", OptionType::String),
+            OptionDef::over(),
+            OptionDef::create("p", "文件名前缀，例如-d out -p image,文件将会被写入到 out/image01.jpg，原有文件名将会被忽略", OptionType::String),
+        ],
     }
-
+    },
     fn exec(
         &self,
         book: &mut EpubBook,
@@ -272,13 +273,13 @@ impl Command for GetImage {
                 }
             }
         }
-    }
-}
+    },
+);
 
-#[derive(Default)]
-pub(crate) struct GetChapter;
-impl GetChapter {
-    pub(crate) fn def() -> arg::CommandOptionDef {
+create_command!(
+    GetChapter,
+    "get-name",
+    {
         arg::CommandOptionDef {
             command: "get-chapter".to_string(),
             desc: "提取章节".to_string(),
@@ -298,14 +299,7 @@ impl GetChapter {
                 ),
             ],
         }
-    }
-}
-
-impl Command for GetChapter {
-    fn name(&self) -> String {
-        "get-chapter".to_string()
-    }
-
+    },
     fn exec(
         &self,
         book: &mut EpubBook,
@@ -327,10 +321,7 @@ impl Command for GetChapter {
 
         let is_over = is_overiade(global_opts, opts);
 
-        let print_body = opts
-            .iter()
-            .find(|f| f.key == "b")
-            .is_some();
+        let print_body = opts.iter().find(|f| f.key == "b").is_some();
 
         for ele in chaps {
             if let Some(chap) = book.get_chapter(&ele) {
@@ -381,5 +372,5 @@ impl Command for GetChapter {
                 eprintln!("chap {} not exists", ele);
             }
         }
-    }
-}
+    },
+);
