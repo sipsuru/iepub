@@ -1,18 +1,19 @@
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::fmt::{Debug, Display};
 use std::rc::Rc;
 use std::str::FromStr;
-use std::collections::HashMap;
 
 extern crate common;
 extern crate derive;
-use common::{epub_base_field,  LinkRel};
+use common::{epub_base_field, LinkRel};
 use html::{get_html_info, to_html, to_nav_html, to_opf, to_toc_xml};
 
+pub mod appender;
 pub mod builder;
 mod html;
 pub mod reader;
-pub mod zip_writer;
+mod zip_writer;
 
 shadow_rs::shadow!(build);
 #[allow(dead_code)]
@@ -26,7 +27,7 @@ pub struct EpubLink {
     pub href: String,
 }
 
-epub_base_field!{
+epub_base_field! {
     #[derive(Default)]
     pub struct EpubHtml {
         pub lang: String,
@@ -74,10 +75,9 @@ impl EpubHtml {
         self._data.as_ref().map(|f| f.as_slice())
     }
 
-    pub fn format(&mut self)->Option<String>{
+    pub fn format(&mut self) -> Option<String> {
         self.data();
         Some(to_html(self))
-        
     }
 
     ///
@@ -139,8 +139,7 @@ impl EpubHtml {
     }
 }
 
-
-epub_base_field!{
+epub_base_field! {
 ///
 /// 非章节资源
 ///
@@ -193,7 +192,7 @@ impl Debug for EpubAssets {
 //         }
 //     }
 // }
-epub_base_field!{
+epub_base_field! {
 ///
 /// 目录信息
 ///
@@ -254,7 +253,7 @@ impl EpubNav {
         self.child.push(child);
     }
 
-    pub fn child(&self) -> &[EpubNav]{
+    pub fn child(&self) -> &[EpubNav] {
         &self.child
     }
 }
@@ -396,7 +395,7 @@ impl EpubBook {
     pub fn title(&self) -> &str {
         self.info.title.as_str()
     }
-    pub fn with_title(mut self,title: &str) ->Self{
+    pub fn with_title(mut self, title: &str) -> Self {
         self.set_title(title);
         self
     }
@@ -407,12 +406,10 @@ impl EpubBook {
         self.info.identifier.clear();
         self.info.identifier.push_str(identifier);
     }
-    pub fn with_identifier(mut self, identifier: &str)->Self {
+    pub fn with_identifier(mut self, identifier: &str) -> Self {
         self.set_identifier(identifier);
         self
     }
-
-
 
     ///
     /// 添加元数据
@@ -468,12 +465,12 @@ impl EpubBook {
             .iter_mut()
             .filter(|s| s.file_name() == file_name)
             .next()
-            // .map(|f| {
-            //     if let Some(r) = &self.reader {
-            //         f.reader = Some(Rc::clone(r));
-            //     }
-            //     f
-            // })
+        // .map(|f| {
+        //     if let Some(r) = &self.reader {
+        //         f.reader = Some(Rc::clone(r));
+        //     }
+        //     f
+        // })
     }
 
     pub fn assets(&self) -> std::slice::Iter<EpubAssets> {
@@ -491,7 +488,6 @@ impl EpubBook {
         self.chapters.push(chap);
     }
 
-
     pub fn chapters(&mut self) -> std::slice::IterMut<EpubHtml> {
         self.chapters.iter_mut()
     }
@@ -506,16 +502,16 @@ impl EpubBook {
             .iter_mut()
             .filter(|s| s.file_name() == file_name)
             .next()
-            // .map(|f| {
-            //     if let Some(r) = &self.reader {
-            //         f.reader = Some(Rc::clone(r));
-            //     }
-            //     f
-            // })
+        // .map(|f| {
+        //     if let Some(r) = &self.reader {
+        //         f.reader = Some(Rc::clone(r));
+        //     }
+        //     f
+        // })
     }
 
     /// 获取目录
-    pub fn nav(&self)->&[EpubNav] {
+    pub fn nav(&self) -> &[EpubNav] {
         &self.nav
     }
 
@@ -551,7 +547,7 @@ pub trait EpubWriter {
 }
 
 pub(crate) trait EpubReaderTrait {
-    fn read(&mut self,book:&mut EpubBook) -> EpubResult<()>;
+    fn read(&mut self, book: &mut EpubBook) -> EpubResult<()>;
     ///
     /// file epub中的文件目录
     ///
@@ -732,8 +728,6 @@ impl EpubBook {
 mod tests {
 
     use std::{fs::File, io::Read, path::Path};
-
-    use common::EpubItem;
 
     use crate::{EpubAssets, EpubBook, EpubHtml, EpubNav};
 

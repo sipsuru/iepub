@@ -513,7 +513,7 @@ pub(crate) fn get_html_info(html: &str, chap: &mut EpubHtml) -> EpubResult<()> {
 
 #[cfg(test)]
 mod test {
-    use common::{EpubItem, LinkRel};
+    use common::LinkRel;
 
     use crate::{
         html::{get_html_info, get_media_type, to_html, to_toc_xml},

@@ -601,7 +601,6 @@ impl<T: Read + Seek> crate::EpubReaderTrait for EpubReader<T> {
         {
             // 读取导航
             if reader.by_name("EPUB/toc.ncx").is_ok() {
-                println!("读取目录");
                 let content = read_from_zip!(reader, "EPUB/toc.ncx");
 
                 read_nav_xml(content.as_str(), book)?;
@@ -670,8 +669,6 @@ impl<T: Read + Seek> EpubReader<T> {
 
 #[cfg(test)]
 mod tests {
-    use common::EpubItem;
-
     use crate::{builder::EpubBuilder, reader::read_from_vec, EpubHtml};
 
     use super::read_from_file;

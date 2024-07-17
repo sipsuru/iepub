@@ -24,7 +24,7 @@ impl From<std::io::Error> for EpubError {
 /// 写入到文件
 ///
 pub struct ZipFileWriter {
-    inner: zip::ZipWriter<File>,
+    pub(crate)  inner: zip::ZipWriter<File>,
 }
 
 impl EpubWriter for ZipFileWriter {

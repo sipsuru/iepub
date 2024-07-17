@@ -6,7 +6,7 @@
 use std::env;
 
 use arg::{ArgOption, OptionDef, OptionType};
-use command::{BookInfoGetter, GetChapter, GetCover, GetImage, NavScanner};
+use command::{BookInfoGetter, BookInfoSetter, GetChapter, GetCover, GetImage, NavScanner};
 use iepub::{reader::read_from_file, EpubBook, EpubError};
 
 mod arg;
@@ -45,7 +45,14 @@ macro_rules! register_command {
 }
 
 // 注册子命令
-register_command!(GetCover, BookInfoGetter, NavScanner, GetImage, GetChapter);
+register_command!(
+    GetCover,
+    BookInfoGetter,
+    BookInfoSetter,
+    NavScanner,
+    GetImage,
+    GetChapter
+);
 
 trait Command {
     ///

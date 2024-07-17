@@ -4,7 +4,22 @@ use crate::{
     arg::{self, ArgOption, CommandOptionDef, OptionDef, OptionType},
     msg, Command,
 };
-use iepub::{EpubBook, EpubError, EpubNav};
+use iepub::{appender::write_metadata, EpubBook, EpubError, EpubNav};
+
+macro_rules! exec_err {
+    ($($arg:tt)*) => {{
+        #[cfg(not(test))]
+        {
+            eprintln!($($arg)*);
+            std::process::exit(1);
+        }
+        #[cfg(test)]
+        panic!($($arg)*);
+
+    }};
+
+}
+
 // 是否覆盖文件
 fn is_overiade(global_opts: &[arg::ArgOption], opts: &[arg::ArgOption]) -> bool {
     global_opts
@@ -98,10 +113,6 @@ create_command!(
             desc: "提取电子书封面, 例如get-cover 1.jpg，输出到1.jpg".to_string(),
             support_args: -1,
             opts: vec![
-                // OptionDef {
-                //     key: String::from("o"),
-                //     _type: OptionType::String,
-                // },
                 OptionDef::create("y", "是否覆盖输出文件", OptionType::NoParamter, false),
             ],
         }
@@ -113,7 +124,9 @@ create_command!(
         opts: &[ArgOption],
         args: &[String],
     ) {
-        let cover = book.cover().unwrap();
+        let cover = book.cover().unwrap_or_else(|| {
+            exec_err!("电子书没有封面");
+        });
         let is_over = is_overiade(global_opts, opts);
         for path in args {
             if std::path::Path::new(&path).exists()
@@ -281,19 +294,24 @@ create_command!(
             desc: "提取章节".to_string(),
             support_args: 0,
             opts: vec![
-                OptionDef::create("c", "文件路径，可以从nav命令中获取", OptionType::Array,true),
+                OptionDef::create(
+                    "c",
+                    "文件路径，可以从nav命令中获取",
+                    OptionType::Array,
+                    true,
+                ),
                 OptionDef::create(
                     "d",
                     "输出目录，没有该参数则直接输出到终端",
                     OptionType::String,
-                    false
+                    false,
                 ),
                 OptionDef::over(),
                 OptionDef::create(
                     "b",
                     "只输出body部分，否则输出完整的xhtml(可能跟原文有所区别)",
                     OptionType::NoParamter,
-                    false
+                    false,
                 ),
             ],
         }
@@ -333,8 +351,7 @@ create_command!(
                         match std::fs::create_dir_all(&p_dir) {
                             Ok(_) => {}
                             Err(e) => {
-                                eprintln!("mkdir {:?} fail, because {}", p_dir, e.to_string());
-                                continue;
+                                exec_err!("mkdir {:?} fail, because {}", p_dir, e.to_string());
                             }
                         };
                     }
@@ -367,8 +384,60 @@ create_command!(
                     );
                 }
             } else {
-                eprintln!("chap {} not exists", ele);
+                exec_err!("chap {} not exists", ele);
             }
         }
     },
+);
+
+create_command!(
+    BookInfoSetter,
+    "set-info",
+    {
+        CommandOptionDef {
+            command: "set-info".to_string(),
+            desc: "设置电子书元数据".to_string(),
+            support_args: 0,
+            opts: vec![
+                OptionDef::create("title", "标题", OptionType::String, false),
+                OptionDef::create("author", "作者", OptionType::String, false),
+                OptionDef::create("isbn", "isbn", OptionType::String, false),
+                OptionDef::create("publisher", "出版社", OptionType::String, false),
+            ],
+        }
+    },
+    fn exec(
+        &self,
+        book: &mut EpubBook,
+        global_opts: &[ArgOption],
+        opts: &[ArgOption],
+        _args: &[String],
+    ) {
+        // 修改数据
+        for ele in opts {
+            if ele.key == "title" {
+                book.set_title(ele.value.as_ref().unwrap().as_str());
+            } else if ele.key == "author" {
+                book.set_creator(ele.value.as_ref().unwrap().as_str());
+            } else if ele.key == "isbn" {
+                book.set_identifier(ele.value.as_ref().unwrap().as_str());
+            } else if ele.key == "publisher" {
+                book.set_publisher(ele.value.as_ref().unwrap().as_str());
+            }
+        }
+
+        msg!("metadata update finished, writing file now");
+        // 输出文件
+        let file = global_opts
+            .iter()
+            .find(|f| f.key == "i")
+            .and_then(|f| f.value.as_ref())
+            .unwrap();
+        match write_metadata(file, book) {
+            Ok(_) => {}
+            Err(e) => {
+                exec_err!("write file fail, because {:?}", e);
+            }
+        };
+    }
 );
