@@ -1,6 +1,5 @@
 use crate::arg::ArgOption;
 
-
 pub(crate) static mut IS_LOG: bool = false;
 
 pub(crate) fn is_enable_log(opts: &[ArgOption]) -> bool {

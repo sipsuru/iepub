@@ -23,7 +23,7 @@ macro_rules! parse_err {
         }
         #[cfg(test)]
         panic!($($arg)*);
-        
+
     }};
 
 }
@@ -110,10 +110,10 @@ pub(crate) struct CommandOptionDef {
 
 /// 处理字符串，去除可能存在的引号
 fn trim_arg(value: String) -> String {
-    if value.starts_with("\"") && value.ends_with("\"") {
+    if value.starts_with('\"') && value.ends_with('\"') {
         return String::from(&value[1..value.len() - 1]);
     }
-    if value.starts_with("'") && value.ends_with("'") {
+    if value.starts_with('\'') && value.ends_with('\'') {
         return String::from(&value[1..value.len() - 1]);
     }
     // 还有转义之类的，这里不考虑了，实在写不完了
@@ -145,8 +145,7 @@ pub(crate) fn parse_arg(
     let mut current: Option<&OptionDef> = None;
     let mut current_command: Option<&CommandOptionDef> = None;
     for ele in args {
-        if ele.starts_with("-") {
-            let key = &ele[1..];
+        if let Some(key) = ele.strip_prefix('-') {
             // 子命令参数
             if let Some(cc) = current_command {
                 // 解析子命令的参数
@@ -156,13 +155,10 @@ pub(crate) fn parse_arg(
 
                 if current.is_some() {
                     let index = arg.group.len() - 1;
-                    let mut group = arg.group.get_mut(index).unwrap();
-                    match current.unwrap()._type {
-                        OptionType::NoParamter => {
-                            // 没有参数，到此为止
-                            current = None;
-                        }
-                        _ => {}
+                    let group = arg.group.get_mut(index).unwrap();
+                    if let OptionType::NoParamter = current.unwrap()._type {
+                        // 没有参数，到此为止
+                        current = None;
                     }
 
                     group.opts.push(ArgOption {
@@ -195,12 +191,9 @@ pub(crate) fn parse_arg(
             // 全局参数，需要判断
             current = option_def.iter().find(|s| s.key == key);
             if current.is_some() {
-                match current.unwrap()._type {
-                    OptionType::NoParamter => {
-                        // 没有参数，到此为止
-                        current = None;
-                    }
-                    _ => {}
+                if let OptionType::NoParamter = current.unwrap()._type {
+                    // 没有参数，到此为止
+                    current = None;
                 }
                 arg.opts.push(ArgOption {
                     key: key.to_string(),
@@ -279,14 +272,15 @@ pub(crate) fn parse_arg(
     }
 
     // 校验参数
-    if arg.opts.iter().find(|f| f.key == "h").is_none() {
+    if !arg.opts.iter().any(|f| f.key == "h") {
         for ele in &option_def {
             if ele.required {
                 let a = arg.opts.iter().find(|s| s.key == ele.key);
-                if a.is_none() {
-                    parse_err!("grobal arg -{} is required", ele.key);
-                } else {
-                    match ele._type {
+                match a {
+                    None => {
+                        parse_err!("grobal arg -{} is required", ele.key);
+                    }
+                    Some(_) => match ele._type {
                         OptionType::Array => {
                             if !a
                                 .unwrap()
@@ -304,7 +298,7 @@ pub(crate) fn parse_arg(
                             }
                         }
                         _ => {}
-                    }
+                    },
                 }
             }
         }
@@ -315,17 +309,15 @@ pub(crate) fn parse_arg(
         if group.is_none() {
             continue;
         }
-        if group.unwrap().opts.iter().find(|f| f.key == "h").is_some() {
+        if group.unwrap().opts.iter().any(|f| f.key == "h") {
             continue;
         }
 
         for opt in &ele.opts {
             if opt.required {
                 let a = group.unwrap().opts.iter().find(|s| s.key == opt.key);
-                if a.is_none() {
-                    parse_err!("command {} arg -{} is required", ele.command, opt.key);
-                } else {
-                    match opt._type {
+                match a {
+                    Some(_) => match opt._type {
                         OptionType::Array => {
                             if !a
                                 .unwrap()
@@ -351,6 +343,9 @@ pub(crate) fn parse_arg(
                             }
                         }
                         _ => {}
+                    },
+                    None => {
+                        parse_err!("command {} arg -{} is required", ele.command, opt.key);
                     }
                 }
             }
@@ -473,7 +468,6 @@ mod tests {
                     "get-cover".to_string(),
                     "-y".to_string(),
                     "cover.jpg".to_string(),
-                    
                 ],
                 create_option_def(),
                 create_command_option_def()
@@ -496,8 +490,8 @@ mod tests {
         );
 
         assert_eq!(
-            "Arg { opts: [ArgOption { key: \"h\", value: None, values: None }], group: [] }"
-            ,m
+            "Arg { opts: [ArgOption { key: \"h\", value: None, values: None }], group: [] }",
+            m
         );
 
         m = format!(
@@ -529,6 +523,6 @@ mod tests {
             .unwrap()
         );
 
-        println!("m={:?}",m);
+        println!("m={:?}", m);
     }
 }

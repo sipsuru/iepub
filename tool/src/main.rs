@@ -7,7 +7,8 @@ use std::env;
 
 use arg::{ArgOption, OptionDef, OptionType};
 use command::{BookInfoGetter, BookInfoSetter, GetChapter, GetCover, GetImage, NavScanner};
-use iepub::{reader::read_from_file, EpubBook, EpubError};
+use iepub::prelude::*;
+use iepub::reader::read_from_file;
 
 mod arg;
 mod command;
@@ -37,7 +38,7 @@ macro_rules! register_command {
         fn support_command() -> Vec<Box<dyn Command>> {
             vec![
                 $(
-                    Box::new($cmd_type::default()),
+                    Box::<$cmd_type>::default(),
                 )*
             ]
         }
@@ -80,19 +81,16 @@ fn main() {
     let mut e = Err(EpubError::Unknown);
     let arg = arg::parse_arg(s, create_option_def(), create_command_option_def()).unwrap();
 
-    if arg.opts.iter().find(|s| s.key == "h").is_some() {
+    if arg.opts.iter().any(|s| s.key == "h") {
         println!(
             "Usage: {} [options...] [command] [command options...] ",
             exe_file_name
         );
-        println!("Example: {} -i input.epub get-cover out.jpg", exe_file_name);
-        println!("");
+        println!("Example: {} -i input.epub get-cover out.jpg\n", exe_file_name);
         for ele in create_option_def() {
             println!("-{:10} {}", ele.key, ele.desc);
         }
-        println!("");
-        println!("supported sub command:");
-        println!("");
+        println!("\nsupported sub command:\n");
         for ele in create_command_option_def() {
             println!("{:20} {}", ele.command, ele.desc);
         }
@@ -103,10 +101,9 @@ fn main() {
 
     for ele in &arg.opts {
         if ele.key == "i" {
-            msg!("reading file ");
+            msg!("reading file");
             // 读取数据文件
             e = read_from_file(ele.value.as_ref().unwrap().as_str());
-            msg!("readed file ");
         }
     }
 
@@ -117,7 +114,7 @@ fn main() {
     for ele in arg.group {
         let m = commands.iter().find(|s| s.name() == ele.command);
         if let Some(com) = m {
-            if ele.opts.iter().find(|s| s.key == "h").is_some() {
+            if ele.opts.iter().any(|s| s.key == "h") {
                 if let Some(def) = create_command_option_def()
                     .iter()
                     .find(|s| s.command == com.name())

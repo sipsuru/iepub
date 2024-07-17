@@ -17,15 +17,15 @@ macro_rules! epub_base_field{
         ),*$(,)?
     }
     ) => {
-        
+
             $(#[$meta])*
             pub struct $struct_name{
-                
+
                 id:String,
                 _file_name:String,
                 media_type:String,
                 _data: Option<Vec<u8>>,
-                reader:Option<std::rc::Rc<std::cell::RefCell< Box<dyn crate::EpubReaderTrait>>>>,
+                reader:Option<std::rc::Rc<std::cell::RefCell< Box<dyn EpubReaderTrait>>>>,
                 $(
                     $(#[$field_meta])*
                     $field_vis $field_name : $field_type,
@@ -78,7 +78,7 @@ macro_rules! epub_base_field{
 
             }
 
-        
+
     }
 }
 
@@ -88,44 +88,6 @@ pub static NAV: &str = "EPUB/nav.xhtml";
 pub static COVER: &str = "EPUB/cover.xhtml";
 pub static OPF: &str = "EPUB/content.opf";
 
-#[derive(Debug)]
-pub enum EpubItemType {
-    UNKNOWN,
-    IMAGE,
-    STYLE,
-    SCRIPT,
-    NAVIGATION,
-    VECTOR,
-    FONT,
-    VIDEO,
-    AUDIO,
-    DOCUMENT,
-    CONVER,
-}
-
-impl EpubItemType {
-    pub fn code(&self) -> isize {
-        match self {
-            Self::UNKNOWN => 0,
-            Self::IMAGE => 1,
-            Self::STYLE => 2,
-            Self::SCRIPT => 3,
-            Self::NAVIGATION => 4,
-            Self::VECTOR => 5,
-            Self::FONT => 6,
-            Self::VIDEO => 7,
-            Self::AUDIO => 8,
-            Self::DOCUMENT => 9,
-            Self::CONVER => 10,
-        }
-    }
-}
-
-impl std::fmt::Display for EpubItemType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.code())
-    }
-}
 
 impl std::fmt::Display for LinkRel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

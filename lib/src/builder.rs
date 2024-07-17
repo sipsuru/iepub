@@ -1,8 +1,5 @@
-
-
-use crate::{
-    zip_writer, EpubAssets, EpubBook, EpubHtml, EpubMetaData, EpubNav, EpubResult, EpubWriter,
-};
+use crate::prelude::*;
+use crate::zip_writer;
 
 ///
 /// 简化epub构建
@@ -207,7 +204,7 @@ impl EpubBuilder {
 
 #[cfg(test)]
 mod tests {
-    use crate::EpubHtml;
+    use crate::prelude::EpubHtml;
 
     use super::EpubBuilder;
 

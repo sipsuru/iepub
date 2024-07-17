@@ -6,13 +6,13 @@ use proc_macro::TokenStream;
 ///
 /// 对于Option<String>类型的结构体成员，生成相关方法，支持多级嵌套
 ///
-/// # Examples:
 ///
-/// ```rust
-/// /// 访问成员 self.info.k
-/// option_string_method!(info,k)
-/// /// 访问成员 self.k
-/// option_string_method!(k)
+/// ```compile_fail
+/// use iepub_derive::option_string_method;
+/// // 访问成员 self.info.k
+/// option_string_method!(info,k);
+/// // 访问成员 self.k
+/// option_string_method!(k);
 /// ```
 ///
 #[proc_macro]

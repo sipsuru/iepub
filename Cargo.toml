@@ -1,5 +1,5 @@
 [workspace]
-members = [ "common", "derive", "lib", "tool"] 
+members = [ "derive", "lib", "tool"] 
 resolver = "2"
      
 [workspace.package]
@@ -8,3 +8,5 @@ version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[patch.crates-io]
+iepub = { path = "lib" }

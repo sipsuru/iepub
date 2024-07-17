@@ -5,16 +5,14 @@ use std::{
 
 use quick_xml::events::BytesStart;
 
-use crate::{
-    EpubAssets, EpubBook, EpubError, EpubHtml, EpubMetaData, EpubNav, EpubReaderTrait, EpubResult,
-};
+use crate::{core::EpubReaderTrait, prelude::*};
 
 macro_rules! invalid {
     ($x:tt) => {
-        Err(crate::EpubError::InvalidArchive($x))
+        Err(EpubError::InvalidArchive($x))
     };
     ($x:expr,$y:expr) => {
-        $x.or(Err(crate::EpubError::InvalidArchive($y)))?
+        $x.or(Err(EpubError::InvalidArchive($y)))?
     };
 }
 
@@ -101,7 +99,7 @@ fn read_meta_xml(
             }
             Ok(Event::Start(e)) => {
                 let name = String::from_utf8(e.name().as_ref().to_vec())
-                    .map_err(|f| EpubError::Utf8(f))?;
+                    .map_err(EpubError::Utf8)?;
 
                 if name == "meta" {
                     if parent.len() != 2 || parent[1] != "metadata" {
@@ -113,12 +111,10 @@ fn read_meta_xml(
                         }
                         parent.push("meta".to_string());
                     }
+                } else if parent.len() != 2 || parent[1] != "metadata" {
+                    return invalid!("not valid opf identifier");
                 } else {
-                    if parent.len() != 2 || parent[1] != "metadata" {
-                        return invalid!("not valid opf identifier");
-                    } else {
-                        parent.push(name);
-                    }
+                    parent.push(name);
                 }
             }
             Ok(Event::Empty(e)) => match e.name().as_ref() {
@@ -175,7 +171,7 @@ fn read_meta_xml(
             }
             Ok(Event::End(e)) => {
                 let name = String::from_utf8(e.name().as_ref().to_vec())
-                    .map_err(|f| EpubError::Utf8(f))?;
+                    .map_err(EpubError::Utf8)?;
 
                 if name == "metadata" {
                     if parent.len() != 2 || parent[0] != "package" {
@@ -312,7 +308,7 @@ fn read_opf_xml(xml: &str, book: &mut EpubBook) -> EpubResult<()> {
     use quick_xml::reader::Reader;
 
     let mut reader = Reader::from_str(xml);
-    let mut config = reader.config_mut();
+    let config = reader.config_mut();
     config.trim_text(true);
 
     let mut buf = Vec::new();
@@ -382,10 +378,10 @@ fn read_opf_xml(xml: &str, book: &mut EpubBook) -> EpubResult<()> {
         for i in 0..book.meta_len() {
             if let Some(meta) = book.get_meta(i) {
                 {
-                    if let Some((key, value)) = meta.attr.get_key_value("name") {
+                    if let Some(value) = meta.get_attr("name") {
                         if value == "cover" {
                             // 可能是封面
-                            if let Some(content) = meta.attr.get("content") {
+                            if let Some(content) = meta.get_attr("content") {
                                 // 对应的封面的id
 
                                 // 查找封面
@@ -402,8 +398,8 @@ fn read_opf_xml(xml: &str, book: &mut EpubBook) -> EpubResult<()> {
                     }
                 }
                 {
-                    if let Some(pro) = meta.attr.get("property") {
-                        if pro == "dcterms:modified" && meta.text.is_some() {
+                    if let Some(pro) = meta.get_attr("property") {
+                        if pro == "dcterms:modified" && meta.text().is_some() {
                             last_modify = Some(meta.text().unwrap().to_string());
                         }
                     }
@@ -436,7 +432,7 @@ fn read_nav_point_xml(
     nav: &mut EpubNav,
 ) -> EpubResult<()> {
     use quick_xml::events::Event;
-    use quick_xml::reader::Reader;
+    
 
     let mut buf = Vec::new();
     // 模拟 栈，记录当前的层级
@@ -467,13 +463,13 @@ fn read_nav_point_xml(
                     // 套娃了
                     let mut n = EpubNav::default();
                     read_nav_point_xml(reader, &mut n)?;
-                    nav.child.push(n);
+                    nav.push(n);
                 }
                 _ => {}
             },
             Ok(Event::End(e)) => {
                 let name = String::from_utf8(e.name().as_ref().to_vec())
-                    .map_err(|f| EpubError::Utf8(f))?;
+                    .map_err(EpubError::Utf8)?;
 
                 if name == "navPoint" {
                     break;
@@ -502,7 +498,7 @@ fn read_nav_xml(xml: &str, book: &mut EpubBook) -> EpubResult<()> {
     use quick_xml::reader::Reader;
 
     let mut reader = Reader::from_str(xml);
-    let mut config = reader.config_mut();
+    let config = reader.config_mut();
     config.trim_text(true);
     config.expand_empty_elements = true;
 
@@ -540,7 +536,7 @@ fn read_nav_xml(xml: &str, book: &mut EpubBook) -> EpubResult<()> {
             },
             Ok(Event::End(e)) => {
                 let name = String::from_utf8(e.name().as_ref().to_vec())
-                    .map_err(|f| EpubError::Utf8(f))?;
+                    .map_err(EpubError::Utf8)?;
 
                 if name == "navMap" {
                     break;
@@ -574,7 +570,7 @@ struct EpubReader<T> {
 
 //     }
 // }
-impl<T: Read + Seek> crate::EpubReaderTrait for EpubReader<T> {
+impl<T: Read + Seek> EpubReaderTrait for EpubReader<T> {
     fn read(&mut self, book: &mut EpubBook) -> EpubResult<()> {
         let reader = &mut self.inner;
 
@@ -636,7 +632,7 @@ pub fn read_from_vec(data: Vec<u8>) -> EpubResult<EpubBook> {
     let mut book = EpubBook::default();
     let re: std::rc::Rc<std::cell::RefCell<Box<dyn EpubReaderTrait>>> =
         std::rc::Rc::new(std::cell::RefCell::new(Box::new(reader)));
-    book.reader = Some(std::rc::Rc::clone(&re));
+    book.set_reader(std::rc::Rc::clone(&re));
 
     (*re.borrow_mut()).read(&mut book)?;
     Ok(book)
@@ -655,7 +651,7 @@ pub fn read_from_file(file: &str) -> EpubResult<EpubBook> {
     let mut book = EpubBook::default();
     let re: std::rc::Rc<std::cell::RefCell<Box<dyn EpubReaderTrait>>> =
         std::rc::Rc::new(std::cell::RefCell::new(Box::new(reader)));
-    book.reader = Some(std::rc::Rc::clone(&re));
+    book.set_reader(std::rc::Rc::clone(&re));
 
     (*re.borrow_mut()).read(&mut book)?;
     Ok(book)
@@ -669,9 +665,9 @@ impl<T: Read + Seek> EpubReader<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{builder::EpubBuilder, reader::read_from_vec, EpubHtml};
-
     use super::read_from_file;
+    use crate::prelude::*;
+    use crate::{builder::EpubBuilder, reader::read_from_vec};
 
     #[test]
     fn test() {
@@ -717,19 +713,19 @@ mod tests {
         assert_eq!(b.identifier(), nb.identifier());
         assert_eq!(b.last_modify(), nb.last_modify());
 
-        assert_eq!(b.assets.len(), nb.assets.len());
+        assert_eq!(b.assets().len(), nb.assets().len());
         // 多出来的一个是导航 nav.xhtml
-        assert_eq!(b.chapters.len() + 1, nb.chapters.len());
+        assert_eq!(b.chapters().len() + 1, nb.chapters().len());
 
         // 读取html
         let chapter = nb.get_chapter("0.xhtml");
         // assert_ne!(None, chapter);
-        assert_eq!(true, chapter.is_some());
+        assert!(chapter.is_some());
         let c = &mut chapter.unwrap();
 
         let data = c.data();
 
-        assert_eq!(true, data.is_some());
+        assert!(data.is_some());
         let d = String::from_utf8(data.unwrap().to_vec()).unwrap();
         println!("d [{}]", d);
 

@@ -1,11 +1,11 @@
-use std::{f32::consts::E, fmt::format, io::Write};
+use std::io::Write;
 
 use crate::{
     arg::{self, ArgOption, CommandOptionDef, OptionDef, OptionType},
     msg, Command,
 };
-use iepub::{appender::write_metadata, EpubBook, EpubError, EpubNav};
-
+use iepub::appender::write_metadata;
+use iepub::prelude::*;
 macro_rules! exec_err {
     ($($arg:tt)*) => {{
         #[cfg(not(test))]
@@ -112,9 +112,12 @@ create_command!(
             command: String::from("get-cover"),
             desc: "提取电子书封面, 例如get-cover 1.jpg，输出到1.jpg".to_string(),
             support_args: -1,
-            opts: vec![
-                OptionDef::create("y", "是否覆盖输出文件", OptionType::NoParamter, false),
-            ],
+            opts: vec![OptionDef::create(
+                "y",
+                "是否覆盖输出文件",
+                OptionType::NoParamter,
+                false,
+            )],
         }
     },
     fn exec(
@@ -124,7 +127,7 @@ create_command!(
         opts: &[ArgOption],
         args: &[String],
     ) {
-        let cover = book.cover().unwrap_or_else(|| {
+        let cover = book.cover_mut().unwrap_or_else(|| {
             exec_err!("电子书没有封面");
         });
         let is_over = is_overiade(global_opts, opts);
@@ -248,18 +251,18 @@ create_command!(
                         file = format!(
                             "{dir}/{p}{}{}",
                             file_size,
-                            &name[name.rfind(".").unwrap_or(0)..]
+                            &name[name.rfind('.').unwrap_or(0)..]
                         );
                         file_size += 1;
                     }
-                    let n_dir = &file[0..file.rfind("/").unwrap_or(0)];
+                    let n_dir = &file[0..file.rfind('/').unwrap_or(0)];
                     if !std::path::Path::new(n_dir).exists() {
                         msg!("creating dir {}", n_dir);
                         // 创建目录
                         match std::fs::create_dir_all(n_dir) {
                             Ok(_) => {}
                             Err(e) => {
-                                eprintln!("create dir {} fail, because {}", n_dir, e.to_string());
+                                eprintln!("create dir {} fail, because {}", n_dir, e);
                                 continue;
                             }
                         };
@@ -331,16 +334,15 @@ create_command!(
         let chaps: Vec<&String> = opts
             .iter()
             .filter(|s| s.key == "c" && s.values.is_some())
-            .map(|f| f.values.as_ref().unwrap())
-            .flat_map(|f| f)
+            .flat_map(|f| f.values.as_ref().unwrap())
             .collect();
 
         let is_over = is_overiade(global_opts, opts);
 
-        let print_body = opts.iter().find(|f| f.key == "b").is_some();
+        let print_body = opts.iter().any(|f| f.key == "b");
 
         for ele in chaps {
-            if let Some(chap) = book.get_chapter(&ele) {
+            if let Some(chap) = book.get_chapter(ele) {
                 if let Some(d) = dir {
                     let mut p_dir: std::path::PathBuf =
                         std::path::Path::new(&d).join(chap.file_name());

@@ -1,17 +1,17 @@
 [package]
 name = "iepub"
-version = "0.1.0"
+version = {workspace=true}
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-common={path="../common"}
+iepub-derive={path="../derive",version="0.1.0"}
 zip = "2.1.3"
 quick-xml = "0.34.0"
 chrono = "0.4.38"
 shadow-rs = "0.29.0"
-derive={path="../derive"}
+
 
 
 [build-dependencies]

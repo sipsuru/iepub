@@ -1,6 +1,6 @@
 use std::{fs::File, io::Write};
 
-use crate::{EpubError, EpubResult, EpubWriter};
+use crate::prelude::*;
 
 impl From<zip::result::ZipError> for EpubError {
     fn from(value: zip::result::ZipError) -> Self {
@@ -24,11 +24,11 @@ impl From<std::io::Error> for EpubError {
 /// 写入到文件
 ///
 pub struct ZipFileWriter {
-    pub(crate)  inner: zip::ZipWriter<File>,
+    pub(crate) inner: zip::ZipWriter<File>,
 }
 
 impl EpubWriter for ZipFileWriter {
-    fn write(&mut self, file: &str, data: &[u8]) -> crate::EpubResult<()> {
+    fn write(&mut self, file: &str, data: &[u8]) -> EpubResult<()> {
         let options = zip::write::SimpleFileOptions::default()
             .compression_method(zip::CompressionMethod::Stored)
             .unix_permissions(0o755);
@@ -37,11 +37,17 @@ impl EpubWriter for ZipFileWriter {
         Ok(())
     }
 
-    fn new(filename: &str) -> crate::EpubResult<Self>
+    fn new(filename: &str) -> EpubResult<Self>
     where
         Self: Sized,
     {
         let path = std::path::Path::new(filename);
+        // 创建上级目录
+        let parent = path.parent();
+        if parent.is_some() && parent.map(|f| !f.exists()).unwrap_or(false) {
+            std::fs::create_dir_all(parent.unwrap())?;
+        }
+
         match std::fs::File::create(path) {
             Ok(file) => Ok(ZipFileWriter {
                 inner: zip::ZipWriter::new(file),
@@ -59,7 +65,7 @@ pub struct ZipMemoeryWriter {
 }
 
 impl EpubWriter for ZipMemoeryWriter {
-    fn new(_file: &str) -> crate::EpubResult<Self>
+    fn new(_file: &str) -> EpubResult<Self>
     where
         Self: Sized,
     {
@@ -70,7 +76,7 @@ impl EpubWriter for ZipMemoeryWriter {
         })
     }
 
-    fn write(&mut self, file: &str, data: &[u8]) -> crate::EpubResult<()> {
+    fn write(&mut self, file: &str, data: &[u8]) -> EpubResult<()> {
         let options = zip::write::SimpleFileOptions::default()
             .compression_method(zip::CompressionMethod::Stored)
             .unix_permissions(0o755);

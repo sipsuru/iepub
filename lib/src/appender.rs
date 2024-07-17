@@ -1,10 +1,12 @@
 //! 修改现有epub文件，目前仅支持修改元数据
 //!
 //!
+use crate::prelude::*;
 use crate::{
+    common,
+    core::EpubWriter,
     html::{to_opf, to_toc_xml},
-    zip_writer::{self},
-    EpubBook, EpubResult, EpubWriter,
+    zip_writer,
 };
 
 /// 修改电子书元数据
@@ -70,8 +72,8 @@ pub fn write_metadata(file: &str, book: &EpubBook) -> EpubResult<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{appender::write_metadata, builder::EpubBuilder, reader::read_from_file, EpubHtml};
-
+    use crate::prelude::*;
+    use crate::{appender::write_metadata, builder::EpubBuilder, reader::read_from_file};
     #[test]
     fn test_appender() {
         #[inline]
@@ -95,7 +97,7 @@ mod tests {
         }
         let _ = std::fs::remove_file("temp.epub");
 
-        let m = create_book().file("temp.epub").unwrap();
+        create_book().file("temp.epub").unwrap();
 
         let mut book = create_book().book();
         book.set_title("修改后的名字");
