@@ -96,7 +96,7 @@ jobs:
         run: |
           echo "Releasing version: ${{ needs.version.outputs.NEXT_VERSION }}"
           echo "Cargo Packaging..."
-          cargo package
+          cargo package ${{ matrix.package.args }}
 
       - name: Publish ${{ matrix.package.name }}
         working-directory: ${{ matrix.package.path }}
