@@ -24,6 +24,9 @@ jobs:
   release:
     runs-on: ubuntu-latest
     needs: [version]
+    permissions:
+      contents: write
+      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -67,6 +70,7 @@ jobs:
     strategy:
       fail-fast: false
       max-parallel: 1
+      # 必须 每个crates依次 package后publish，因为后续的package的时候要求前面的必须在crates.io，所以不能一次性把所有crate都packages后再publish
       matrix:
         package:
           - crate: iepub-derive
@@ -86,18 +90,15 @@ jobs:
         run: cargo login ${{ secrets.CRATES_TOKEN }}
 
       - name: Cargo package
+        working-directory: ${{ matrix.package.path }}
         run: |
-          cd derive
+          echo "Releasing version: ${{ needs.version.outputs.NEXT_VERSION }}"
           echo "Cargo Packaging..."
           cargo package
-          cd ../lib
-          cargo package
 
-      - name: Publish
+      - name: Publish ${{ matrix.package.name }}
+        working-directory: ${{ matrix.package.path }}
         run: |
-          cd derive
           echo "Cargo Publishing..."
-          cargo publish
-          cd ../lib
           cargo publish
           echo "New version $NEXT_VERSION has been published"
