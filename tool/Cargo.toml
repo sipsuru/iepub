@@ -3,6 +3,7 @@ name="tool"
 version.workspace = true
 edition.workspace = true
 description = "命令行工具，可获取epub信息"
+license = { workspace = true }
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
