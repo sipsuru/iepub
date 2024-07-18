@@ -3,7 +3,7 @@ name = "iepub"
 version = {workspace=true}
 edition = "2021"
 license = { workspace = true }
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = { workspace = true }
 
 [dependencies]
 iepub-derive={path="../derive",version="0.1.0"}
