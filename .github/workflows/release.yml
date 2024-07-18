@@ -75,8 +75,10 @@ jobs:
         package:
           - crate: iepub-derive
             path: derive
+            args: 
           - crate: iepub
             path: lib
+            args: --no-verify
     steps:
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -100,5 +102,5 @@ jobs:
         working-directory: ${{ matrix.package.path }}
         run: |
           echo "Cargo Publishing..."
-          cargo publish
+          cargo publish ${{ matrix.package.args }}
           echo "New version $NEXT_VERSION has been published"
