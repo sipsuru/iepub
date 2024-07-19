@@ -373,6 +373,7 @@ fn read_opf_xml(xml: &str, book: &mut EpubBook) -> EpubResult<()> {
 
     let mut last_modify = None;
     let mut cover = None;
+    let mut generator = None;
     {
         // 解析meta，获取部分关键数据
         for i in 0..book.meta_len() {
@@ -394,6 +395,12 @@ fn read_opf_xml(xml: &str, book: &mut EpubBook) -> EpubResult<()> {
                                     }
                                 }
                             }
+                        }else if value=="generator" {
+                            // 电子书创建者
+                            // 可能是封面
+                            if let Some(content) = meta.get_attr("content") {
+                                generator = Some(content.clone());
+                            }
                         }
                     }
                 }
@@ -404,16 +411,6 @@ fn read_opf_xml(xml: &str, book: &mut EpubBook) -> EpubResult<()> {
                         }
                     }
                 }
-
-                // for (key, value) in meta.attrs() {
-                //     if key.as_str() == "property"
-                //         && value == "dcterms:modified"
-                //         && meta.text().is_some()
-                //     {
-                //         last_modify = Some(meta.text().unwrap().to_string());
-                //         // book.set_last_modify(meta.text().unwrap().to_string().as_str());
-                //     }
-                // }
             }
         }
     }
@@ -423,6 +420,9 @@ fn read_opf_xml(xml: &str, book: &mut EpubBook) -> EpubResult<()> {
     }
     if let Some(co) = cover {
         book.set_cover(co);
+    }
+    if let Some(g) = generator {
+        book.set_generator(g.as_str());
     }
 
     Ok(())

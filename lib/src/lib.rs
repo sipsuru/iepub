@@ -26,5 +26,3 @@ pub mod prelude {
 
     pub use crate::common::LinkRel;
 }
-
-shadow_rs::shadow!(build);

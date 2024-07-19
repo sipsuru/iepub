@@ -82,6 +82,14 @@ create_command!(
                 OptionDef::create("author", "作者", OptionType::NoParamter, false),
                 OptionDef::create("isbn", "isbn", OptionType::NoParamter, false),
                 OptionDef::create("publisher", "出版社", OptionType::NoParamter, false),
+                OptionDef::create("date", "出版日期", OptionType::NoParamter, false),
+                OptionDef::create("desc", "简介", OptionType::NoParamter, false),
+                OptionDef::create("format", "format", OptionType::NoParamter, false),
+                OptionDef::create("subject", "subject", OptionType::NoParamter, false),
+                OptionDef::create("contributor", "contributor", OptionType::NoParamter, false),
+                OptionDef::create("modify", "最后修改时间", OptionType::NoParamter, false),
+                OptionDef::create("generator", "电子书创建者", OptionType::NoParamter, false),
+
             ],
         }
     },
@@ -98,6 +106,13 @@ create_command!(
                 "author" => println!("{}", book.creator().unwrap_or("")),
                 "isbn" => println!("{}", book.identifier()),
                 "publisher" => println!("{}", book.publisher().unwrap_or("")),
+                "date" => println!("{}", book.date().unwrap_or("")),
+                "desc" => println!("{}", book.description().unwrap_or("")),
+                "format" => println!("{}", book.format().unwrap_or("")),
+                "subject" => println!("{}", book.subject().unwrap_or("")),
+                "contributor" => println!("{}", book.contributor().unwrap_or("")),
+                "modify" => println!("{}", book.last_modify().unwrap_or("")),
+                "generator"=>println!("{}",book.generator().unwrap_or("")),
                 _ => {}
             }
         }
@@ -405,6 +420,11 @@ create_command!(
                 OptionDef::create("author", "作者", OptionType::String, false),
                 OptionDef::create("isbn", "isbn", OptionType::String, false),
                 OptionDef::create("publisher", "出版社", OptionType::String, false),
+                OptionDef::create("date", "出版日期，格式为:2024-06-28T03:07:07UTC", OptionType::String, false),
+                OptionDef::create("desc", "简介", OptionType::String, false),
+                OptionDef::create("format", "format", OptionType::String, false),
+                OptionDef::create("subject", "subject", OptionType::String, false),
+                OptionDef::create("contributor", "contributor", OptionType::String, false),
             ],
         }
     },
@@ -417,14 +437,18 @@ create_command!(
     ) {
         // 修改数据
         for ele in opts {
-            if ele.key == "title" {
-                book.set_title(ele.value.as_ref().unwrap().as_str());
-            } else if ele.key == "author" {
-                book.set_creator(ele.value.as_ref().unwrap().as_str());
-            } else if ele.key == "isbn" {
-                book.set_identifier(ele.value.as_ref().unwrap().as_str());
-            } else if ele.key == "publisher" {
-                book.set_publisher(ele.value.as_ref().unwrap().as_str());
+            let v = ele.value.as_ref().unwrap().as_str();
+            match ele.key.as_str() {
+                "title"=>book.set_title(v),
+                "author"=>book.set_creator(v),
+                "isbn"=>book.set_identifier(v),
+                "publisher"=>book.set_publisher(v),
+                "date"=>book.set_date(v),
+                "desc"=>book.set_description(v),
+                "format"=>book.set_format(v),
+                "subject"=>book.set_subject(v),
+                "contributor"=>book.set_contributor(v),
+                _ => {},
             }
         }
 

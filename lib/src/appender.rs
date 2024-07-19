@@ -1,7 +1,7 @@
 //! 修改现有epub文件，目前仅支持修改元数据
 //!
 //!
-use crate::prelude::*;
+use crate::{core, prelude::*};
 use crate::{
     common,
     core::EpubWriter,
@@ -30,8 +30,8 @@ pub fn write_metadata(file: &str, book: &EpubBook) -> EpubResult<()> {
                 book,
                 format!(
                     "{}-{}",
-                    crate::build::PROJECT_NAME,
-                    crate::build::PKG_VERSION
+                    core::info::PROJECT_NAME,
+                    core::info::PKG_VERSION
                 )
                 .as_str(),
             )

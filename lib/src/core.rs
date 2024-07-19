@@ -9,7 +9,9 @@ use html::{get_html_info, to_html, to_nav_html, to_opf, to_toc_xml};
 use crate::common::LinkRel;
 use crate::{common, epub_base_field, html, zip_writer};
 
-
+pub(crate) mod info{
+    include!(concat!(env!("OUT_DIR"), "/shadow.rs"));
+}
 
 /**
  * 链接文件，可能是css
@@ -336,6 +338,8 @@ struct EpubBookInfo {
 pub struct EpubBook {
     /// 上次修改时间
     last_modify: Option<String>,
+    /// epub电子书创建者信息
+    generator:Option<String>,
     /// 书本信息
     info: EpubBookInfo,
     /// 元数据
@@ -386,6 +390,7 @@ impl EpubBook {
     // / ```
     // /
     iepub_derive::option_string_method!(last_modify);
+    iepub_derive::option_string_method!(generator);
 }
 
 // 元数据
@@ -620,8 +625,8 @@ impl EpubBook {
                 self,
                 format!(
                     "{}-{}",
-                    crate::build::PROJECT_NAME,
-                    crate::build::PKG_VERSION
+                    info::PROJECT_NAME,
+                    info::PKG_VERSION
                 )
                 .as_str(),
             )
