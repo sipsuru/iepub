@@ -244,12 +244,9 @@ fn write_metadata(
     xml.write_event(Event::Start(metadata.borrow()))?;
 
     // metadata 内元素
-    let now = book.last_modify().map_or_else(
-        || {
-            format!("{}", chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%Z")) // chrono 可以自己实现
-        },
-        String::from,
-    );
+    let now = book
+        .last_modify()
+        .map_or_else(|| common::time_format(), String::from);
 
     xml.create_element("meta")
         .with_attribute(("property", "dcterms:modified"))
@@ -501,8 +498,7 @@ pub(crate) fn get_html_info(html: &str, chap: &mut EpubHtml) -> EpubResult<()> {
             },
             Ok(Event::Text(e)) => {
                 if parent.len() == 3 && parent[2] == "title" {
-                    let v = String::from_utf8(e.into_inner().to_vec())
-                        .map_err(EpubError::Utf8)?;
+                    let v = String::from_utf8(e.into_inner().to_vec()).map_err(EpubError::Utf8)?;
                     chap.set_title(v.as_str().trim());
                 }
             }
@@ -515,10 +511,8 @@ pub(crate) fn get_html_info(html: &str, chap: &mut EpubHtml) -> EpubResult<()> {
 mod test {
 
     use super::{to_nav_html, to_opf};
+    use crate::html::{get_html_info, get_media_type, to_html, to_toc_xml};
     use crate::prelude::*;
-    use crate::{
-        html::{get_html_info, get_media_type, to_html, to_toc_xml},
-    };
 
     #[test]
     fn test_to_html() {

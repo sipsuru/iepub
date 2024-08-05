@@ -1,3 +1,4 @@
+use crate::common;
 use crate::prelude::*;
 use crate::zip_writer;
 
@@ -162,9 +163,7 @@ impl EpubBuilder {
 
     fn gen_last_modify(&mut self) {
         if self.book.last_modify().is_none() {
-            self.book.set_last_modify(
-                format!("{}", chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%Z")).as_str(),
-            );
+            self.book.set_last_modify(&common::time_format());
         }
     }
 
