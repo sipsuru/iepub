@@ -1,2 +1,1 @@
-- 支持generator meta属性
-- 命令行工具添加参数
+- get-info命令添加all参数
