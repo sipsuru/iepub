@@ -6,8 +6,9 @@
 
 ## 生成
 
-1、可以使用`EpubBook`结构体手动生成epub
-2、（推荐）使用`EpubBuilder`快速生成
+- 可以使用`EpubBook`结构体手动生成epub
+- （推荐）使用`EpubBuilder`快速生成
+
 ```rust
 use iepub::EpubHtml;
 use iepub::EpubBuilder;
@@ -57,7 +58,7 @@ let data2 = chap.data();// 第二次不会再读取文件了
 
 ## 命令行工具
 
-`tool`目录为命令行工具
+[tool](https://github.com/inkroom/iepub/releases)目录为命令行工具
 
 目前支持
 - 获取元数据，如标题、作者
