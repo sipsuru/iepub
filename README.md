@@ -1,10 +1,13 @@
 # iepub
 
 [EPUB](https://www.w3.org/TR/2023/REC-epub-33-20230525/)格式读写库，
+[MOBI](https://wiki.mobileread.com/wiki/MOBI)格式读库，
+
+## EPUB
 
 支持从文件和内存读取和生成EPUB电子书
 
-## 生成
+### 生成
 
 - 可以使用`EpubBook`结构体手动生成epub
 - （推荐）使用`EpubBuilder`快速生成
@@ -33,10 +36,10 @@ EpubBuilder::default()
 
 ```
 
-## 读取
+### 读取
 
 ```rust
- use iepub::{reader::read_from_vec, reader::read_from_file, EpubHtml};
+use iepub::prelude::{reader::read_from_vec, reader::read_from_file, EpubHtml};
 let mut data = Vec::new();// epub的二进制数据
 
 let mut book = read_from_vec(data);
@@ -56,9 +59,21 @@ let data2 = chap.data();// 第二次不会再读取文件了
 `iepub`使用`EpubHtml`来存储章节内容，但是`EpubHtml#data`实际只会存储 html>body 节点内的内容，并且**不包括**body节点的属性(attribute)，其他比如样式表将会存放在其他属性中
 
 
+## mobi
+
+目前mobi只支持读取
+
+```rust
+use iepub::prelude::*;
+
+let path = std::env::current_dir().unwrap().join("1.mobi");
+let mut mobi = MobiReader::new(std::fs::File::open(path.to_str().unwrap()).unwrap()).unwrap();
+let book = mobi.load().unwrap();
+```
+
 ## 命令行工具
 
-[tool](https://github.com/inkroom/iepub/releases)目录为命令行工具
+[tool](https://github.com/inkroom/iepub/releases)目录为命令行工具，支持mobi和epub格式，但是不同格式支持的命令不尽相同
 
 目前支持
 - 获取元数据，如标题、作者

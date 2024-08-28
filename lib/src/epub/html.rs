@@ -1,7 +1,7 @@
-use std::collections::HashMap;
-
-use crate::{common, prelude::*};
+use super::common;
+use crate::prelude::*;
 use quick_xml::events::Event;
+use std::collections::HashMap;
 
 static XHTML_1: &str = r#"<?xml version='1.0' encoding='utf-8'?>
 <!DOCTYPE html>
@@ -188,14 +188,7 @@ pub(crate) fn to_toc_xml(book_title: &str, nav: &[EpubNav]) -> String {
     xml
 }
 
-impl From<quick_xml::Error> for EpubError {
-    fn from(value: quick_xml::Error) -> Self {
-        match value {
-            quick_xml::Error::Io(e) => EpubError::Io(std::io::Error::other(e)),
-            _ => EpubError::Xml(value),
-        }
-    }
-}
+
 
 fn get_media_type(file_name: &str) -> String {
     let f = file_name.to_lowercase();
@@ -233,7 +226,7 @@ fn write_metadata(
     book: &EpubBook,
     generator: &str,
     xml: &mut quick_xml::Writer<std::io::Cursor<Vec<u8>>>,
-) -> EpubResult<()> {
+) -> IResult<()> {
     use quick_xml::events::{BytesStart, BytesText, Event};
 
     // metadata
@@ -246,7 +239,7 @@ fn write_metadata(
     // metadata 内元素
     let now = book
         .last_modify()
-        .map_or_else(|| common::time_format(), String::from);
+        .map_or_else(|| crate::common::time_format(), String::from);
 
     xml.create_element("meta")
         .with_attribute(("property", "dcterms:modified"))
@@ -330,7 +323,7 @@ fn write_metadata(
     Ok(())
 }
 
-pub(crate) fn do_to_opf(book: &EpubBook, generator: &str) -> EpubResult<String> {
+pub(crate) fn do_to_opf(book: &EpubBook, generator: &str) -> IResult<String> {
     let vue: Vec<u8> = Vec::new();
     let mut xml: quick_xml::Writer<std::io::Cursor<Vec<u8>>> =
         quick_xml::Writer::new(std::io::Cursor::new(vue));
@@ -418,7 +411,7 @@ pub(crate) fn do_to_opf(book: &EpubBook, generator: &str) -> EpubResult<String> 
 
     match String::from_utf8(xml.into_inner().into_inner()) {
         Ok(v) => Ok(v),
-        Err(e) => Err(EpubError::Utf8(e)),
+        Err(e) => Err(IError::Utf8(e)),
     }
 }
 
@@ -433,7 +426,7 @@ pub(crate) fn to_opf(book: &EpubBook, generator: &str) -> String {
 ///
 /// 解析html获取相关数据
 ///
-pub(crate) fn get_html_info(html: &str, chap: &mut EpubHtml) -> EpubResult<()> {
+pub(crate) fn get_html_info(html: &str, chap: &mut EpubHtml) -> IResult<()> {
     use quick_xml::reader::Reader;
     let mut reader = Reader::from_str(html);
     // reader.config_mut().trim_text(true);
@@ -445,7 +438,7 @@ pub(crate) fn get_html_info(html: &str, chap: &mut EpubHtml) -> EpubResult<()> {
                 return Ok(());
             }
             Err(e) => {
-                return Err(EpubError::Xml(e));
+                return Err(IError::Xml(e));
             }
             Ok(Event::Start(body)) => match body.name().as_ref() {
                 b"html" => {
@@ -453,7 +446,7 @@ pub(crate) fn get_html_info(html: &str, chap: &mut EpubHtml) -> EpubResult<()> {
                 }
                 b"head" => {
                     if parent.len() != 1 || parent[0] != "html" {
-                        return Err(EpubError::Unknown);
+                        return Err(IError::Unknown);
                     }
                     parent.push("head");
                 }
@@ -466,7 +459,7 @@ pub(crate) fn get_html_info(html: &str, chap: &mut EpubHtml) -> EpubResult<()> {
                     let m = reader
                         .read_text(body.to_end().to_owned().name())
                         .map(|f| f.to_string())
-                        .map_err(EpubError::Xml);
+                        .map_err(IError::Xml);
                     if m.is_ok() {
                         chap.set_data(m.unwrap().into_bytes());
                     }
@@ -498,7 +491,7 @@ pub(crate) fn get_html_info(html: &str, chap: &mut EpubHtml) -> EpubResult<()> {
             },
             Ok(Event::Text(e)) => {
                 if parent.len() == 3 && parent[2] == "title" {
-                    let v = String::from_utf8(e.into_inner().to_vec()).map_err(EpubError::Utf8)?;
+                    let v = String::from_utf8(e.into_inner().to_vec()).map_err(IError::Utf8)?;
                     chap.set_title(v.as_str().trim());
                 }
             }
@@ -510,8 +503,8 @@ pub(crate) fn get_html_info(html: &str, chap: &mut EpubHtml) -> EpubResult<()> {
 #[cfg(test)]
 mod test {
 
+    use super::{get_html_info, get_media_type, to_html, to_toc_xml};
     use super::{to_nav_html, to_opf};
-    use crate::html::{get_html_info, get_media_type, to_html, to_toc_xml};
     use crate::prelude::*;
 
     #[test]

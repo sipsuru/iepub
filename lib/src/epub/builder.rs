@@ -1,6 +1,7 @@
-use crate::common;
+use super::common;
+use super::zip_writer;
+use crate::common::time_format;
 use crate::prelude::*;
-use crate::zip_writer;
 
 ///
 /// 简化epub构建
@@ -163,7 +164,7 @@ impl EpubBuilder {
 
     fn gen_last_modify(&mut self) {
         if self.book.last_modify().is_none() {
-            self.book.set_last_modify(&common::time_format());
+            self.book.set_last_modify(&time_format());
         }
     }
 
@@ -180,7 +181,7 @@ impl EpubBuilder {
     ///
     /// 输出到文件
     ///
-    pub fn file(mut self, file: &str) -> EpubResult<()> {
+    pub fn file(mut self, file: &str) -> IResult<()> {
         self.gen_last_modify();
         self.gen_nav();
         self.book.write(file)
@@ -189,7 +190,7 @@ impl EpubBuilder {
     ///
     /// 输出到内存
     ///
-    pub fn mem(mut self) -> EpubResult<Vec<u8>> {
+    pub fn mem(mut self) -> IResult<Vec<u8>> {
         self.gen_last_modify();
         self.gen_nav();
 

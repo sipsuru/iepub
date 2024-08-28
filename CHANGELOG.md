@@ -1,2 +1,2 @@
-- get-info命令添加all参数
-- 移除chrono依赖
+- 支持mobi读取
+- 命令行支持mobi解包

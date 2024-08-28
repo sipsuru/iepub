@@ -3,12 +3,11 @@
 //! tool -i file.epub get-cover 1.jpg
 //!
 
-use std::env;
+use std::{env, fs::File, process::exit};
 
-use arg::{ArgOption, OptionDef, OptionType};
-use command::{BookInfoGetter, BookInfoSetter, GetChapter, GetCover, GetImage, NavScanner};
+use arg::{Arg, ArgOption, OptionDef, OptionType};
+use commands::{epub, mobi};
 use iepub::prelude::*;
-use iepub::reader::read_from_file;
 
 mod arg;
 mod command;
@@ -24,38 +23,48 @@ fn create_option_def() -> Vec<OptionDef> {
     ]
 }
 
-macro_rules! register_command {
-    ($($cmd_type:ident),+ ) => {
-        fn create_command_option_def() -> Vec<arg::CommandOptionDef> {
-            vec![
-            $(
-            $cmd_type::def(),
-            )*
-            ]
-
-        }
-
-        fn support_command() -> Vec<Box<dyn Command>> {
-            vec![
+mod commands {
+    macro_rules! register_command {
+        ($($cmd_type:ident),*) => {
+            pub(crate) fn create_command_option_def() -> Vec<$crate::arg::CommandOptionDef> {
+                vec![
                 $(
-                    Box::<$cmd_type>::default(),
+                $cmd_type::def(),
                 )*
-            ]
-        }
-    };
+                ]
+
+            }
+
+            pub(crate) fn support_command() -> Vec<Box<dyn $crate::Command>> {
+                vec![
+                    $(
+                        Box::<$cmd_type>::default(),
+                    )*
+                ]
+            }
+        };
+    }
+    pub(crate) mod epub {
+        use crate::{command::epub::*, Command};
+
+        // 注册子命令
+        register_command!(
+            GetCover,
+            BookInfoGetter,
+            BookInfoSetter,
+            NavScanner,
+            GetImage,
+            GetChapter
+        );
+    }
+    pub(crate) mod mobi {
+        use crate::command::mobi::*;
+        register_command!(BookInfoGetter, GetImage, GetCover, Unpack);
+    }
 }
 
-// 注册子命令
-register_command!(
-    GetCover,
-    BookInfoGetter,
-    BookInfoSetter,
-    NavScanner,
-    GetImage,
-    GetChapter
-);
-
-trait Command {
+/// epub格式支持的命令
+pub(crate) trait Command {
     ///
     /// 命令
     ///
@@ -64,58 +73,141 @@ trait Command {
     ///
     /// 执行命令
     ///
-    fn exec(
-        &self,
-        book: &mut EpubBook,
-        global_opts: &[ArgOption],
-        opts: &[ArgOption],
-        args: &[String],
-    );
+    fn exec(&self, book: &mut Book, global_opts: &[ArgOption], opts: &[ArgOption], args: &[String]);
 
     // fn def()->arg::CommandOptionDef;
+}
+
+pub(crate) enum Book<'a> {
+    EPUB(&'a mut EpubBook),
+    MOBI(&'a mut MobiBook),
+}
+
+/// 检查文件类型
+/// 
+/// [return] 0 epub 1 mobi,None 没有指定文件参数
+fn check_input_type(arg: &Arg) -> Option<(usize, String)> {
+
+    let check_method: Vec<fn(&mut File) -> IResult<bool>> = vec![ iepub::prelude::check::is_epub, iepub::prelude::check::is_mobi];
+
+    if let Some(opt) = arg.find_opt("i") {
+        let path = opt.value.as_ref().unwrap().as_str();
+        msg!("opening file {}", path);
+        let v = std::fs::File::open(path);
+        if let Err(e) = v {
+            exec_err!("open file err: {}", e);
+        }
+        let mut fs = v.unwrap();
+
+        for (index,ele) in check_method.iter().enumerate() {
+             if ele(&mut fs).unwrap_or(false) {
+                return Some((index,path.to_string()));
+             }
+        }
+        exec_err!("unsupport file format");
+    }
+
+    None
+}
+
+fn print_useage(arg: &Arg, exe_file_name: &str) -> bool {
+    if arg.find_opt("h").is_some() {
+        println!(
+            "Usage: {} [options...] [command] [command options...] ",
+            exe_file_name
+        );
+
+        println!(
+            "Example: {} -i input.epub get-cover out.jpg\n",
+            exe_file_name
+        );
+        for ele in create_option_def() {
+            println!("-{:10} {}", ele.key, ele.desc);
+        }
+        println!("\nsupported sub command for epub:\n");
+        for ele in commands::epub::create_command_option_def() {
+            println!("{:20} {}", ele.command, ele.desc);
+        }
+
+        println!("\nsupported sub command for mobi:\n");
+        for ele in commands::mobi::create_command_option_def() {
+            println!("{:20} {}", ele.command, ele.desc);
+        }
+        return true;
+    }
+    false
 }
 
 fn main() {
     let mut s: Vec<String> = env::args().collect();
     let exe_file_name = s.remove(0); //把第一个参数去掉
-    let mut e = Err(EpubError::Unknown);
-    let arg = arg::parse_arg(s, create_option_def(), create_command_option_def()).unwrap();
 
-    if arg.opts.iter().any(|s| s.key == "h") {
-        println!(
-            "Usage: {} [options...] [command] [command options...] ",
-            exe_file_name
-        );
-        println!("Example: {} -i input.epub get-cover out.jpg\n", exe_file_name);
-        for ele in create_option_def() {
-            println!("-{:10} {}", ele.key, ele.desc);
-        }
-        println!("\nsupported sub command:\n");
-        for ele in create_command_option_def() {
-            println!("{:20} {}", ele.command, ele.desc);
-        }
+    let (mut arg, index) = arg::parse_global_arg(s, create_option_def()).unwrap();
+
+    // 设置日志
+    log::set_enable_log(arg.find_opt("l").is_some());
+
+    if print_useage(&arg, &exe_file_name) {
         return;
     }
 
-    let _ = log::is_enable_log(&arg.opts);
+    let input_type = check_input_type(&arg);
 
-    for ele in &arg.opts {
-        if ele.key == "i" {
-            msg!("reading file");
-            // 读取数据文件
-            e = read_from_file(ele.value.as_ref().unwrap().as_str());
+    if input_type.is_none() {
+        exec_err!("has no file, please use -i <file>");
+    }
+    if let Some((input_type, _)) = input_type {
+        // 解析参数
+        // 解析后续参数
+        arg::parse_command_arg(
+            &mut arg,
+            env::args().skip(index + 1).map(|f| f.to_string()).collect(),
+            if input_type == 0 {
+                epub::create_command_option_def()
+            } else {
+                mobi::create_command_option_def()
+            },
+        );
+    }
+    let (res, path) = input_type.unwrap();
+    // 打开文件并执行
+    if res == 0 {
+        // epub
+        match read_from_file(path.as_str()) {
+            Ok(mut book) => {
+                exec_epub(&arg, &mut book, &exe_file_name.as_str());
+            }
+            Err(e) => {
+                exec_err!("err: {}", e);
+            }
+        }
+    } else if res == 1 {
+        // mobi
+        match iepub::prelude::MobiReader::new(std::fs::File::open(path).unwrap_or_else(|s| {
+            exec_err!("err: {}", s);
+        }))
+        .and_then(|mut f| f.load())
+        {
+            Ok(mut book) => {
+                exec_mobi(&arg, &mut book, &exe_file_name.as_str());
+            }
+            Err(e) => {
+                exec_err!("err: {}", e);
+            }
         }
     }
+}
 
+fn exec_epub(arg: &Arg, book: &mut EpubBook, exe_file_name: &str) {
     let global_opts = arg.opts.as_slice();
 
-    let commands = support_command();
+    let commands = commands::epub::support_command();
     // 执行 command
-    for ele in arg.group {
+    for ele in &arg.group {
         let m = commands.iter().find(|s| s.name() == ele.command);
         if let Some(com) = m {
             if ele.opts.iter().any(|s| s.key == "h") {
-                if let Some(def) = create_command_option_def()
+                if let Some(def) = commands::epub::create_command_option_def()
                     .iter()
                     .find(|s| s.command == com.name())
                 {
@@ -136,8 +228,43 @@ fn main() {
 
                 continue;
             }
-            let book = e.as_mut().unwrap();
-            com.exec(book, global_opts, &ele.opts, &ele.args);
+            com.exec(&mut Book::EPUB(book), global_opts, &ele.opts, &ele.args);
+        }
+    }
+}
+
+fn exec_mobi(arg: &Arg, book: &mut MobiBook, exe_file_name: &str) {
+    let global_opts = arg.opts.as_slice();
+
+    let commands = commands::mobi::support_command();
+
+    // 执行 command
+    for ele in &arg.group {
+        let m = commands.iter().find(|s| s.name() == ele.command);
+        if let Some(com) = m {
+            if ele.opts.iter().any(|s| s.key == "h") {
+                if let Some(def) = commands::mobi::create_command_option_def()
+                    .iter()
+                    .find(|s| s.command == com.name())
+                {
+                    println!(
+                        "Usage: {} {} {}",
+                        exe_file_name,
+                        com.name(),
+                        if def.support_args != 0 {
+                            "[file_path]"
+                        } else {
+                            ""
+                        }
+                    );
+                    for ele in &def.opts {
+                        println!("-{:10} {}", ele.key, ele.desc);
+                    }
+                }
+
+                continue;
+            }
+            com.exec(&mut Book::MOBI(book), global_opts, &ele.opts, &ele.args);
         }
     }
 }

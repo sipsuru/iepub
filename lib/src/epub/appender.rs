@@ -1,19 +1,19 @@
 //! 修改现有epub文件，目前仅支持修改元数据
 //!
 //!
-use crate::{core, prelude::*};
-use crate::{
-    common,
+use super::{
+    common, core,
     core::EpubWriter,
     html::{to_opf, to_toc_xml},
     zip_writer,
 };
+use crate::prelude::*;
 
 /// 修改电子书元数据
 ///
 /// [file] 原文件路径
 ///
-pub fn write_metadata(file: &str, book: &EpubBook) -> EpubResult<()> {
+pub fn write_metadata(file: &str, book: &EpubBook) -> IResult<()> {
     let dir = std::env::temp_dir();
     let temp_file = dir.join(format!("{}.update.epub", std::process::id()));
     {
@@ -28,12 +28,7 @@ pub fn write_metadata(file: &str, book: &EpubBook) -> EpubResult<()> {
             common::OPF,
             to_opf(
                 book,
-                format!(
-                    "{}-{}",
-                    core::info::PROJECT_NAME,
-                    core::info::PKG_VERSION
-                )
-                .as_str(),
+                format!("{}-{}", core::info::PROJECT_NAME, core::info::PKG_VERSION).as_str(),
             )
             .as_bytes(),
         )?;
@@ -72,8 +67,8 @@ pub fn write_metadata(file: &str, book: &EpubBook) -> EpubResult<()> {
 
 #[cfg(test)]
 mod tests {
+    use super::write_metadata;
     use crate::prelude::*;
-    use crate::{appender::write_metadata, builder::EpubBuilder, reader::read_from_file};
     #[test]
     fn test_appender() {
         #[inline]

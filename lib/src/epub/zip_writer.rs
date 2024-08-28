@@ -2,24 +2,20 @@ use std::{fs::File, io::Write};
 
 use crate::prelude::*;
 
-impl From<zip::result::ZipError> for EpubError {
+impl From<zip::result::ZipError> for IError {
     fn from(value: zip::result::ZipError) -> Self {
         match value {
-            zip::result::ZipError::Io(io) => EpubError::Io(io),
-            zip::result::ZipError::InvalidArchive(v) => EpubError::InvalidArchive(v),
-            zip::result::ZipError::UnsupportedArchive(v) => EpubError::UnsupportedArchive(v),
-            zip::result::ZipError::InvalidPassword => EpubError::InvalidPassword,
-            zip::result::ZipError::FileNotFound => EpubError::FileNotFound,
-            _ => EpubError::Unknown,
+            zip::result::ZipError::Io(io) => IError::Io(io),
+            zip::result::ZipError::InvalidArchive(v) => IError::InvalidArchive(v),
+            zip::result::ZipError::UnsupportedArchive(v) => IError::UnsupportedArchive(v),
+            zip::result::ZipError::InvalidPassword => IError::InvalidPassword,
+            zip::result::ZipError::FileNotFound => IError::FileNotFound,
+            _ => IError::Unknown,
         }
     }
 }
 
-impl From<std::io::Error> for EpubError {
-    fn from(value: std::io::Error) -> Self {
-        EpubError::Io(value)
-    }
-}
+
 ///
 /// 写入到文件
 ///
@@ -28,7 +24,7 @@ pub struct ZipFileWriter {
 }
 
 impl EpubWriter for ZipFileWriter {
-    fn write(&mut self, file: &str, data: &[u8]) -> EpubResult<()> {
+    fn write(&mut self, file: &str, data: &[u8]) -> IResult<()> {
         let options = zip::write::SimpleFileOptions::default()
             .compression_method(zip::CompressionMethod::Stored)
             .unix_permissions(0o755);
@@ -37,7 +33,7 @@ impl EpubWriter for ZipFileWriter {
         Ok(())
     }
 
-    fn new(filename: &str) -> EpubResult<Self>
+    fn new(filename: &str) -> IResult<Self>
     where
         Self: Sized,
     {
@@ -52,7 +48,7 @@ impl EpubWriter for ZipFileWriter {
             Ok(file) => Ok(ZipFileWriter {
                 inner: zip::ZipWriter::new(file),
             }),
-            Err(e) => Err(EpubError::Io(e)),
+            Err(e) => Err(IError::Io(e)),
         }
     }
 }
@@ -65,7 +61,7 @@ pub struct ZipMemoeryWriter {
 }
 
 impl EpubWriter for ZipMemoeryWriter {
-    fn new(_file: &str) -> EpubResult<Self>
+    fn new(_file: &str) -> IResult<Self>
     where
         Self: Sized,
     {
@@ -76,7 +72,7 @@ impl EpubWriter for ZipMemoeryWriter {
         })
     }
 
-    fn write(&mut self, file: &str, data: &[u8]) -> EpubResult<()> {
+    fn write(&mut self, file: &str, data: &[u8]) -> IResult<()> {
         let options = zip::write::SimpleFileOptions::default()
             .compression_method(zip::CompressionMethod::Stored)
             .unix_permissions(0o755);
@@ -87,7 +83,7 @@ impl EpubWriter for ZipMemoeryWriter {
 }
 
 impl ZipMemoeryWriter {
-    pub fn data(self) -> EpubResult<Vec<u8>> {
+    pub fn data(self) -> IResult<Vec<u8>> {
         let mut w = self.inner.finish()?;
 
         let mut res = Vec::new();

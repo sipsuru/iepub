@@ -4,12 +4,16 @@ use std::fmt::{Debug, Display};
 use std::rc::Rc;
 use std::str::FromStr;
 
-use html::{get_html_info, to_html, to_nav_html, to_opf, to_toc_xml};
+use super::html::{get_html_info, to_html, to_nav_html, to_opf, to_toc_xml};
 
-use crate::common::LinkRel;
-use crate::{common, epub_base_field, html, zip_writer};
+use crate::common::IResult;
+use crate::epub::common::LinkRel;
+use crate::epub::zip_writer;
+use crate::epub_base_field;
 
-pub(crate) mod info{
+use super::common;
+
+pub(crate) mod info {
     include!(concat!(env!("OUT_DIR"), "/shadow.rs"));
 }
 
@@ -306,42 +310,15 @@ impl EpubMetaData {
     }
 }
 
-#[derive(Debug, Default)]
-struct EpubBookInfo {
-    /// 书名
-    title: String,
-
-    /// 标志，例如imbi
-    identifier: String,
-    /// 作者
-    creator: Option<String>,
-    ///
-    /// 简介
-    ///
-    description: Option<String>,
-    /// 捐赠者？
-    contributor: Option<String>,
-
-    /// 出版日期
-    date: Option<String>,
-
-    /// 格式?
-    format: Option<String>,
-    /// 出版社
-    publisher: Option<String>,
-    /// 主题？
-    subject: Option<String>,
-}
-
 /// 书本
 #[derive(Default)]
 pub struct EpubBook {
     /// 上次修改时间
     last_modify: Option<String>,
     /// epub电子书创建者信息
-    generator:Option<String>,
+    generator: Option<String>,
     /// 书本信息
-    info: EpubBookInfo,
+    info: crate::common::BookInfo,
     /// 元数据
     meta: Vec<EpubMetaData>,
     /// 目录信息
@@ -472,8 +449,7 @@ impl EpubBook {
     /// [file_name] 不需要带有 EPUB 目录
     ///
     pub fn get_assets(&mut self, file_name: &str) -> Option<&mut EpubAssets> {
-        self.assets
-            .iter_mut().find(|s| s.file_name() == file_name)
+        self.assets.iter_mut().find(|s| s.file_name() == file_name)
         // .map(|f| {
         //     if let Some(r) = &self.reader {
         //         f.reader = Some(Rc::clone(r));
@@ -512,7 +488,8 @@ impl EpubBook {
     ///
     pub fn get_chapter(&mut self, file_name: &str) -> Option<&mut EpubHtml> {
         self.chapters
-            .iter_mut().find(|s| s.file_name() == file_name)
+            .iter_mut()
+            .find(|s| s.file_name() == file_name)
         // .map(|f| {
         //     if let Some(r) = &self.reader {
         //         f.reader = Some(Rc::clone(r));
@@ -539,7 +516,7 @@ impl EpubBook {
     }
 }
 
-pub type EpubResult<T> = Result<T, EpubError>;
+
 
 ///
 /// epub输出实现，可通过实现该trait从而自定义输出方案。
@@ -550,7 +527,7 @@ pub trait EpubWriter {
     /// 新建
     /// file 输出的epub文件路径
     ///
-    fn new(file: &str) -> EpubResult<Self>
+    fn new(file: &str) -> IResult<Self>
     where
         Self: Sized;
 
@@ -558,49 +535,22 @@ pub trait EpubWriter {
     /// file epub中的文件目录
     /// data 要写入的数据
     ///
-    fn write(&mut self, file: &str, data: &[u8]) -> EpubResult<()>;
+    fn write(&mut self, file: &str, data: &[u8]) -> IResult<()>;
 }
 
 pub(crate) trait EpubReaderTrait {
-    fn read(&mut self, book: &mut EpubBook) -> EpubResult<()>;
+    fn read(&mut self, book: &mut EpubBook) -> IResult<()>;
     ///
     /// file epub中的文件目录
     ///
-    fn read_file(&mut self, file_name: &str) -> EpubResult<Vec<u8>>;
+    fn read_file(&mut self, file_name: &str) -> IResult<Vec<u8>>;
 
     ///
     /// file epub中的文件目录
     ///
-    fn read_string(&mut self, file_name: &str) -> EpubResult<String>;
+    fn read_string(&mut self, file_name: &str) -> IResult<String>;
 }
 
-#[derive(Debug)]
-pub enum EpubError {
-    /// io 错误
-    Io(std::io::Error),
-    /// invalid Zip archive: {0}
-    InvalidArchive(&'static str),
-
-    /// unsupported Zip archive: {0}
-    UnsupportedArchive(&'static str),
-
-    /// specified file not found in archive
-    FileNotFound,
-
-    /// The password provided is incorrect
-    InvalidPassword,
-
-    Utf8(std::string::FromUtf8Error),
-
-    Xml(quick_xml::Error),
-    Unknown,
-}
-
-impl std::fmt::Display for EpubError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
 
 static CONTAINER_XML: &str = r#"<?xml version='1.0' encoding='utf-8'?>
 <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
@@ -612,7 +562,7 @@ static CONTAINER_XML: &str = r#"<?xml version='1.0' encoding='utf-8'?>
 
 impl EpubBook {
     /// 写入基础的文件
-    fn write_base(&self, writer: &mut impl EpubWriter) -> EpubResult<()> {
+    fn write_base(&self, writer: &mut impl EpubWriter) -> IResult<()> {
         writer.write(
             "META-INF/container.xml",
             CONTAINER_XML.replace("{opf}", common::OPF).as_bytes(),
@@ -623,12 +573,7 @@ impl EpubBook {
             common::OPF,
             to_opf(
                 self,
-                format!(
-                    "{}-{}",
-                    info::PROJECT_NAME,
-                    info::PKG_VERSION
-                )
-                .as_str(),
+                format!("{}-{}", info::PROJECT_NAME, info::PKG_VERSION).as_str(),
             )
             .as_bytes(),
         )?;
@@ -637,7 +582,7 @@ impl EpubBook {
     }
 
     /// 写入资源文件
-    fn write_assets(&mut self, writer: &mut impl EpubWriter) -> EpubResult<()> {
+    fn write_assets(&mut self, writer: &mut impl EpubWriter) -> IResult<()> {
         let m = &mut self.assets;
         for ele in m {
             if ele.data().is_none() {
@@ -652,7 +597,7 @@ impl EpubBook {
     }
 
     /// 写入章节文件
-    fn write_chapters(&mut self, writer: &mut impl EpubWriter) -> EpubResult<()> {
+    fn write_chapters(&mut self, writer: &mut impl EpubWriter) -> IResult<()> {
         let chap = &mut self.chapters;
         for ele in chap {
             if ele.data().is_none() {
@@ -670,7 +615,7 @@ impl EpubBook {
         Ok(())
     }
     /// 写入目录
-    fn write_nav(&self, writer: &mut impl EpubWriter) -> EpubResult<()> {
+    fn write_nav(&self, writer: &mut impl EpubWriter) -> IResult<()> {
         // 目录包括两部分，一是自定义的用于书本导航的html，二是epub规范里的toc.ncx文件
         writer.write(common::NAV, to_nav_html(self.title(), &self.nav).as_bytes())?;
         writer.write(common::TOC, to_toc_xml(self.title(), &self.nav).as_bytes())?;
@@ -683,7 +628,7 @@ impl EpubBook {
     ///
     /// 拷贝资源文件以及生成对应的xhtml文件
     ///
-    fn write_cover(&mut self, writer: &mut impl EpubWriter) -> EpubResult<()> {
+    fn write_cover(&mut self, writer: &mut impl EpubWriter) -> IResult<()> {
         if let Some(cover) = &mut self.cover {
             writer.write(
                 format!("{}{}", common::EPUB, cover.file_name()).as_str(),
@@ -707,7 +652,7 @@ impl EpubBook {
     ///
     /// [file] 文件路径，一般以.epub结尾
     ///
-    pub fn write(&mut self, file: &str) -> EpubResult<()> {
+    pub fn write(&mut self, file: &str) -> IResult<()> {
         let mut writer = zip_writer::ZipFileWriter::new(file)?;
         self.write_with_writer(&mut writer)
     }
@@ -729,7 +674,7 @@ impl EpubBook {
     /// ```
     ///
     ///
-    pub fn write_with_writer(&mut self, writer: &mut impl EpubWriter) -> EpubResult<()> {
+    pub fn write_with_writer(&mut self, writer: &mut impl EpubWriter) -> IResult<()> {
         self.write_base(writer)?;
         self.write_assets(writer)?;
         self.write_chapters(writer)?;
@@ -742,8 +687,6 @@ impl EpubBook {
 
 #[cfg(test)]
 mod tests {
-
-    
 
     use crate::prelude::*;
 
