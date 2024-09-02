@@ -3,44 +3,6 @@ use crate::prelude::*;
 use quick_xml::events::Event;
 use std::collections::HashMap;
 
-static XHTML_1: &str = r#"<?xml version='1.0' encoding='utf-8'?>
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" epub:prefix="z3998: http://www.daisy.org/z3998/2012/vocab/structure/#" lang="zh" xml:lang="zh">
-  <head>
-    <title>"#;
-
-static XHTML_2: &str = r#"</title>
-"#;
-
-static XHTML_3: &str = r#"
-</head>
-  <body>
-    <h1>"#;
-
-static XHTML_4: &str = r#"</h1>
-"#;
-static XHTML_5: &str = r#"
-  </body>
-</html>"#;
-
-///
-/// Examples:
-///
-/// <?xml version='1.0' encoding='utf-8'?>
-/// <!DOCTYPE html>
-/// <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" epub:prefix="z3998: http://www.daisy.org/z3998/2012/vocab/structure/#" lang="zh" xml:lang="zh">
-///   <head>
-///     <title>{}</title>
-///     {}
-///   </head>
-///   <body>
-///     <h1>{}</h1>
-///     {}
-///   </body>
-/// </html>
-///
-///
-///
 /// 生成html
 pub(crate) fn to_html(chap: &mut EpubHtml) -> String {
     let mut css = String::new();
@@ -70,19 +32,21 @@ pub(crate) fn to_html(chap: &mut EpubHtml) -> String {
         );
         // 正文
     }
+    let title = chap.title();
     format!(
-        "{}{}{}{}{}{}{}{}{}",
-        XHTML_1,
-        chap.title(),
-        XHTML_2,
-        css, // css link
-        XHTML_3,
-        chap.title(),
-        XHTML_4,
-        body, // 正文
-        XHTML_5
+        r#"<?xml version='1.0' encoding='utf-8'?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" epub:prefix="z3998: http://www.daisy.org/z3998/2012/vocab/structure/#" lang="zh" xml:lang="zh">
+  <head>
+    <title>{title}</title>
+{css}
+</head>
+  <body>
+    <h1>{title}</h1>
+{body}
+  </body>
+</html>"#
     )
-    // format_args!(XHTML,chap.title,"",chap.title,chap.data.unwrap())
 }
 
 fn to_nav_xml(nav: &[EpubNav]) -> String {
@@ -117,22 +81,10 @@ fn to_nav_xml(nav: &[EpubNav]) -> String {
 
 /// 生成自定义的导航html
 pub(crate) fn to_nav_html(book_title: &str, nav: &[EpubNav]) -> String {
-    let ex = r#"<?xml version='1.0' encoding='utf-8'?>
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="zh" xml:lang="zh">
-  <head>
-    <title>{book_title}</title>
-  </head>
-  <body>
-    <nav epub:type="toc" id="id" role="doc-toc">
-      <h2>{book_title}</h2>
-    {nav_xml}
-    </nav>
-  </body>
-</html>"#;
-    let mut html = ex.replace("{book_title}", book_title);
-    html = html.replace("{nav_xml}", to_nav_xml(nav).as_str());
-    html
+    format!(
+        r#"<?xml version='1.0' encoding='utf-8'?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="zh" xml:lang="zh"><head><title>{book_title}</title></head><body><nav epub:type="toc" id="id" role="doc-toc"><h2>{book_title}</h2>{}</nav></body></html>"#,
+        to_nav_xml(nav)
+    )
 }
 
 fn to_toc_xml_point(nav: &[EpubNav], parent: usize) -> String {
@@ -166,29 +118,11 @@ fn to_toc_xml_point(nav: &[EpubNav], parent: usize) -> String {
 
 /// 生成epub中的toc.ncx文件
 pub(crate) fn to_toc_xml(book_title: &str, nav: &[EpubNav]) -> String {
-    let e = r#"<?xml version='1.0' encoding='utf-8'?>
-<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
-  <head>
-    <meta content="1394" name="dtb:uid"/>
-    <meta content="0" name="dtb:depth"/>
-    <meta content="0" name="dtb:totalPageCount"/>
-    <meta content="0" name="dtb:maxPageNumber"/>
-  </head>
-  <docTitle>
-    <text>"#;
-    let mut xml = String::from(e);
-    xml.push_str(book_title);
-    xml.push_str("</text></docTitle><navMap>");
-    // 正文
-    xml.push_str(to_toc_xml_point(nav, 0).as_str());
-
-    // 结束
-    xml.push_str("</navMap></ncx>");
-
-    xml
+    format!(
+        r#"<?xml version='1.0' encoding='utf-8'?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head><meta content="1394" name="dtb:uid"/><meta content="0" name="dtb:depth"/><meta content="0" name="dtb:totalPageCount"/><meta content="0" name="dtb:maxPageNumber"/></head><docTitle><text>{book_title}</text></docTitle><navMap>{}</navMap></ncx>"#,
+        to_toc_xml_point(nav, 0)
+    )
 }
-
-
 
 fn get_media_type(file_name: &str) -> String {
     let f = file_name.to_lowercase();
@@ -567,19 +501,7 @@ ok
         println!("{}", html);
 
         assert_eq!(
-            r###"<?xml version='1.0' encoding='utf-8'?>
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="zh" xml:lang="zh">
-  <head>
-    <title>book_title</title>
-  </head>
-  <body>
-    <nav epub:type="toc" id="id" role="doc-toc">
-      <h2>book_title</h2>
-    <ol><li><a href="file_name">作品说明</a></li><li><a href="0.xhtml">第一卷</a><ol><li><a href="0.xhtml">第一卷 第一章</a></li></ol></li></ol>
-    </nav>
-  </body>
-</html>"###,
+            r###"<?xml version='1.0' encoding='utf-8'?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="zh" xml:lang="zh"><head><title>book_title</title></head><body><nav epub:type="toc" id="id" role="doc-toc"><h2>book_title</h2><ol><li><a href="file_name">作品说明</a></li><li><a href="0.xhtml">第一卷</a><ol><li><a href="0.xhtml">第一卷 第一章</a></li></ol></li></ol></nav></body></html>"###,
             html
         );
     }
@@ -609,16 +531,7 @@ ok
         println!("{}", html);
 
         assert_eq!(
-            r###"<?xml version='1.0' encoding='utf-8'?>
-<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
-  <head>
-    <meta content="1394" name="dtb:uid"/>
-    <meta content="0" name="dtb:depth"/>
-    <meta content="0" name="dtb:totalPageCount"/>
-    <meta content="0" name="dtb:maxPageNumber"/>
-  </head>
-  <docTitle>
-    <text>book_title</text></docTitle><navMap><navPoint id="0-0"><navLabel><text>作品说明</text></navLabel><content src="file_name"></content></navPoint><navPoint id="0-1"><navLabel><text>第一卷</text></navLabel><content src="0.xhtml"></content><navPoint id="1-0"><navLabel><text>第一卷 第一章</text></navLabel><content src="0.xhtml"></content></navPoint></navPoint></navMap></ncx>"###,
+            r###"<?xml version='1.0' encoding='utf-8'?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head><meta content="1394" name="dtb:uid"/><meta content="0" name="dtb:depth"/><meta content="0" name="dtb:totalPageCount"/><meta content="0" name="dtb:maxPageNumber"/></head><docTitle><text>book_title</text></docTitle><navMap><navPoint id="0-0"><navLabel><text>作品说明</text></navLabel><content src="file_name"></content></navPoint><navPoint id="0-1"><navLabel><text>第一卷</text></navLabel><content src="0.xhtml"></content><navPoint id="1-0"><navLabel><text>第一卷 第一章</text></navLabel><content src="0.xhtml"></content></navPoint></navPoint></navMap></ncx>"###,
             html
         );
     }
