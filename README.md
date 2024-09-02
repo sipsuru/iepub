@@ -71,6 +71,22 @@ let mut mobi = MobiReader::new(std::fs::File::open(path.to_str().unwrap()).unwra
 let book = mobi.load().unwrap();
 ```
 
+## 转换
+
+目前仅支持 mobi -> epub
+
+```rust
+use iepub::prelude::*;
+let mut book = std::fs::File::open(std::path::PathBuf::from("example.mobi"))
+            .map_err(|e| IError::Io(e))
+            .and_then(|f| MobiReader::new(f))
+            .and_then(|mut f| f.load())
+            .unwrap();
+
+let mut epub = mobi_to_epub(&mut book).unwrap();
+epub.write("convert.epub").unwrap();
+```
+
 ## 命令行工具
 
 [tool](https://github.com/inkroom/iepub/releases)目录为命令行工具，支持mobi和epub格式，但是不同格式支持的命令不尽相同
@@ -82,5 +98,6 @@ let book = mobi.load().unwrap();
 - 提取所有图片
 - 提取某章节文本
 - 获取目录
+- 格式转换
 
 可通过`-h`获取使用方法说明

@@ -163,6 +163,10 @@ impl MobiBook {
         self.images.iter_mut()
     }
 
+    pub fn assets(&self) -> std::slice::Iter<MobiAssets> {
+        self.images.iter()
+    }
+
     pub fn chapters_mut(&mut self) -> std::slice::IterMut<MobiHtml> {
         self.chapters.iter_mut()
     }

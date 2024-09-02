@@ -59,11 +59,11 @@ mod commands {
     }
     pub(crate) mod mobi {
         use crate::command::mobi::*;
-        register_command!(BookInfoGetter, GetImage, GetCover, Unpack);
+        register_command!(BookInfoGetter, GetImage, GetCover, Unpack,FormatConvert);
     }
 }
 
-/// epub格式支持的命令
+
 pub(crate) trait Command {
     ///
     /// 命令

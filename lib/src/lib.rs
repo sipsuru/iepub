@@ -5,6 +5,7 @@ extern crate iepub_derive;
 mod common;
 mod epub;
 mod mobi;
+mod adapter;
 
 pub mod prelude {
     pub use crate::common::IError;
@@ -36,5 +37,8 @@ pub mod prelude {
         pub use crate::mobi::reader::is_mobi;
     }
     
+    pub mod adapter {
+        pub use crate::adapter::core::mobi_to_epub;
+    }
 
 }

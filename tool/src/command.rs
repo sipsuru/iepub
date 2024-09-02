@@ -558,7 +558,9 @@ pub(crate) mod epub {
 }
 
 pub(crate) mod mobi {
-    use iepub::prelude::MobiNav;
+    use std::f32::consts::E;
+
+    use iepub::prelude::{adapter::mobi_to_epub, MobiNav};
 
     use crate::{
         arg::{self, ArgOption, OptionDef, OptionType},
@@ -854,4 +856,57 @@ pub(crate) mod mobi {
 
         None
     }
+
+    create_command!(
+        FormatConvert,
+        "convert",
+        {
+            arg::CommandOptionDef {
+                command: "convert".to_string(),
+                support_args: 0,
+                desc: "转换成epub".to_string(),
+                opts: vec![
+                    OptionDef::create("f", "输出文件路径", OptionType::String, true),
+                    OptionDef::over(),
+                ],
+            }
+        },
+        fn exec(
+            &self,
+            book: &mut Book,
+            global_opts: &[ArgOption],
+            opts: &[ArgOption],
+            _args: &[String],
+        ) {
+            let path = opts
+                .iter()
+                .find(|f| f.key == "f")
+                .and_then(|f| f.value.clone())
+                .unwrap();
+            if let Book::MOBI(book) = book {
+                let _ = mobi_to_epub(book)
+                    .map(|f| {
+                        (
+                            f,
+                            !std::path::Path::new(path.as_str()).exists()
+                                || is_overiade(global_opts, opts)
+                                || get_single_input("Override file？(y/n)")
+                                    .unwrap()
+                                    .to_lowercase()
+                                    == "y",
+                        )
+                    })
+                    .map(|(mut f, over)| {
+                        if over {
+                            msg!("writing file {}", path);
+                            return f.write(path.as_str());
+                        }
+                        Ok(())
+                    })
+                    .is_err_and(|e| {
+                        exec_err!("err: {}", e);
+                    });
+            }
+        }
+    );
 }
