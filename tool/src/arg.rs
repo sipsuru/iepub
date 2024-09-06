@@ -195,7 +195,7 @@ pub(crate) fn parse_global_arg(
                     let v = arg.opts.last_mut().unwrap();
 
                     v.values
-                        .get_or_insert_with(|| Vec::new())
+                        .get_or_insert_with(Vec::new)
                         .push(trim_arg(ele));
                 }
                 _ => {}
@@ -265,36 +265,28 @@ pub(crate) fn parse_command_arg(
                         Some(cu) => {
                             match cu._type {
                                 OptionType::NoParamter => {
-                                    match arg
+                                    if let Some(m) = arg
                                         .group
                                         .iter_mut()
                                         .find(|s| s.command == com.command)
-                                        .map(|f| &mut f.opts)
-                                    {
-                                        Some(m) => m.push(ArgOption {
-                                            key: key.to_string(),
-                                            value: None,
-                                            values: None,
-                                        }),
-                                        None => {}
-                                    }
+                                        .map(|f| &mut f.opts) { m.push(ArgOption {
+                                        key: key.to_string(),
+                                        value: None,
+                                        values: None,
+                                    }) }
                                     // 参数后面没有值了
                                     current = None;
                                 }
                                 _ => {
-                                    match arg
+                                    if let Some(m) = arg
                                         .group
                                         .iter_mut()
                                         .find(|s| s.command == com.command)
-                                        .map(|f| &mut f.opts)
-                                    {
-                                        Some(m) => m.push(ArgOption {
-                                            key: key.to_string(),
-                                            value: None,
-                                            values: None,
-                                        }),
-                                        None => {}
-                                    }
+                                        .map(|f| &mut f.opts) { m.push(ArgOption {
+                                        key: key.to_string(),
+                                        value: None,
+                                        values: None,
+                                    }) }
                                 }
                             }
                         }
@@ -323,7 +315,7 @@ pub(crate) fn parse_command_arg(
                         .and_then(|f| f.opts.last_mut())
                         .unwrap()
                         .values
-                        .get_or_insert_with(|| Vec::new())
+                        .get_or_insert_with(Vec::new)
                         .push(trim_arg(&ele));
                 }
                 _ => {}
@@ -362,7 +354,7 @@ mod tests {
     use crate::arg::OptionType;
 
     use super::{
-        parse_command_arg, parse_global_arg, Arg, ArgOptionGroup, CommandOptionDef, OptionDef,
+        parse_command_arg, parse_global_arg, Arg, CommandOptionDef, OptionDef,
     };
     fn create_option_def() -> Vec<OptionDef> {
         vec![
@@ -375,7 +367,7 @@ mod tests {
 
     #[test]
     fn test_parse_global_args() {
-        let args = vec!["-l", "-i", "弹丸论破雾切 - 北山猛邦.epub", "nav"]
+        let args = ["-l", "-i", "弹丸论破雾切 - 北山猛邦.epub", "nav"]
             .iter()
             .map(|f| f.to_string())
             .collect();
@@ -398,7 +390,7 @@ mod tests {
     #[test]
     #[should_panic(expected="global opts -i not set")]
     fn test_pase_global_check() {
-        let args = vec!["-l", "nav"].iter().map(|f| f.to_string()).collect();
+        let args = ["-l", "nav"].iter().map(|f| f.to_string()).collect();
         let _ = parse_global_arg(args, create_option_def()).unwrap();
     }
     ///
@@ -407,7 +399,7 @@ mod tests {
     #[test]
     #[should_panic(expected="ops -i must set value")]
     fn test_pase_global_check2() {
-        let args = vec!["-l", "-i"].iter().map(|f| f.to_string()).collect();
+        let args = ["-l", "-i"].iter().map(|f| f.to_string()).collect();
         let (arg,_) = parse_global_arg(args, create_option_def()).unwrap();
         println!("{:?}",arg);
     }
@@ -415,7 +407,7 @@ mod tests {
     #[test]
     fn test_parse_command() {
         let mut arg = Arg::default();
-        let mut args = vec!["get-info", "-all"]
+        let mut args = ["get-info", "-all"]
             .iter()
             .map(|f| f.to_string())
             .collect();
@@ -455,7 +447,7 @@ mod tests {
             ..Default::default()
         }];
 
-        args = vec!["get-info", "-all", "-demo", "h"]
+        args = ["get-info", "-all", "-demo", "h"]
             .iter()
             .map(|f| f.to_string())
             .collect();

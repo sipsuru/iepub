@@ -77,7 +77,7 @@ impl EpubHtml {
 
     pub fn format(&mut self) -> Option<String> {
         self.data();
-        Some(to_html(self))
+        Some(to_html(self, false))
     }
 
     ///
@@ -516,8 +516,6 @@ impl EpubBook {
     }
 }
 
-
-
 ///
 /// epub输出实现，可通过实现该trait从而自定义输出方案。
 ///
@@ -550,7 +548,6 @@ pub(crate) trait EpubReaderTrait {
     ///
     fn read_string(&mut self, file_name: &str) -> IResult<String>;
 }
-
 
 static CONTAINER_XML: &str = r#"<?xml version='1.0' encoding='utf-8'?>
 <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
@@ -604,7 +601,7 @@ impl EpubBook {
                 continue;
             }
 
-            let html = to_html(ele);
+            let html = to_html(ele, true);
 
             writer.write(
                 format!("{}{}", common::EPUB, ele.file_name()).as_str(),
@@ -642,7 +639,7 @@ impl EpubBook {
                     .to_vec(),
             );
             html.title = String::from("Cover");
-            writer.write(common::COVER, to_html(&mut html).as_bytes())?;
+            writer.write(common::COVER, to_html(&mut html, false).as_bytes())?;
         }
         Ok(())
     }

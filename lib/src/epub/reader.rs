@@ -34,28 +34,24 @@ fn get_opf_location(xml: &str) -> IResult<String> {
     // reader.config_mut().trim_text(true);
     let mut buf = Vec::new();
 
-    let mut res: IResult<String> = Err(IError::InvalidArchive("has no opf"));
     loop {
         match reader.read_event_into(&mut buf) {
             Ok(Event::Eof) => {
-                res = Ok(String::new());
-                break;
+                return Ok(String::new());
             }
             Err(e) => {
-                res = Err(IError::Xml(e));
-                break;
+                return Err(IError::Xml(e));
             }
             Ok(Event::Empty(e)) => {
                 if e.name().as_ref() == b"rootfile" {
                     if let Ok(path) = e.try_get_attribute("full-path") {
-                        res = match path.map(|f| {
+                        return match path.map(|f| {
                             f.unescape_value()
                                 .map_or_else(|_| String::new(), |v| v.to_string())
                         }) {
                             Some(v) => Ok(v),
                             None => Err(IError::InvalidArchive("has no opf")),
                         };
-                        break;
                     }
                 }
             }
@@ -63,7 +59,6 @@ fn get_opf_location(xml: &str) -> IResult<String> {
         }
         buf.clear();
     }
-    res
 }
 
 fn create_meta(xml: &BytesStart) -> IResult<EpubMetaData> {
@@ -653,10 +648,10 @@ pub fn read_from_reader<T: Read + Seek + 'static>(value: T) -> IResult<EpubBook>
 }
 
 /// 判断是否是epub文件
-pub fn is_epub<T:Read>(value:&mut T)->IResult<bool>{
+pub fn is_epub<T: Read>(value: &mut T) -> IResult<bool> {
     let mut v = Vec::new();
     value.take(4).read_to_end(&mut v)?;
-    let magic:[u8;4]=[0x50,0x4B,0x03,0x04];
+    let magic: [u8; 4] = [0x50, 0x4B, 0x03, 0x04];
     Ok(v == magic)
 }
 
@@ -664,34 +659,28 @@ pub fn is_epub<T:Read>(value:&mut T)->IResult<bool>{
 mod tests {
     use crate::prelude::*;
 
-    use super::is_epub;
+    use super::{is_epub, read_nav_xml};
 
     #[test]
-    fn test_is_epub(){
-        let mut magic:[u8;4]=[0x50,0x4B,0x03,0x04];
+    fn test_is_epub() {
+        let mut magic: [u8; 4] = [0x50, 0x4B, 0x03, 0x04];
 
-        assert_eq!(true,is_epub(&mut std::io::Cursor::new(magic)).unwrap());
+        assert_eq!(true, is_epub(&mut std::io::Cursor::new(magic)).unwrap());
 
-        magic =[0x50,0x4B,0x03,0x03];
-        assert_eq!(false,is_epub(&mut std::io::Cursor::new(magic)).unwrap());
+        magic = [0x50, 0x4B, 0x03, 0x03];
+        assert_eq!(false, is_epub(&mut std::io::Cursor::new(magic)).unwrap());
 
-        let n_magic:[u8;3]=[0x50,0x4B,0x03];
-        assert_eq!(false,is_epub(&mut std::io::Cursor::new(n_magic)).unwrap());
+        let n_magic: [u8; 3] = [0x50, 0x4B, 0x03];
+        assert_eq!(false, is_epub(&mut std::io::Cursor::new(n_magic)).unwrap());
 
-        let n2_magic:[u8;5]=[0x50,0x4B,0x03,0x04,0x05];
-        assert_eq!(true,is_epub(&mut std::io::Cursor::new(n2_magic)).unwrap());
+        let n2_magic: [u8; 5] = [0x50, 0x4B, 0x03, 0x04, 0x05];
+        assert_eq!(true, is_epub(&mut std::io::Cursor::new(n2_magic)).unwrap());
 
-        let empty = [0u8;32];
-        assert_eq!(false,is_epub(&mut std::io::Cursor::new(empty)).unwrap());
+        let empty = [0u8; 32];
+        assert_eq!(false, is_epub(&mut std::io::Cursor::new(empty)).unwrap());
 
-        let null = [0u8;0];
-        assert_eq!(false,is_epub(&mut std::io::Cursor::new(null)).unwrap());
-
-    }
-
-    #[test]
-    fn test() {
-        read_from_file("/app/魔女之旅.epub").unwrap();
+        let null = [0u8; 0];
+        assert_eq!(false, is_epub(&mut std::io::Cursor::new(null)).unwrap());
     }
 
     #[test]
@@ -750,10 +739,10 @@ mod tests {
         println!("d [{}]", d);
 
         assert_eq!(
-            r"
-    <h1>ok</h1>
+            r#"
+    <h1 style="texe-align: center">ok</h1>
 html
-  ",
+  "#,
             d
         );
 
@@ -769,5 +758,19 @@ html
         assert_eq!("0.xhtml", nb.nav()[0].file_name());
 
         // println!("{}",c.data().map(|f|String::from_utf8(f.to_vec())).unwrap().unwrap());
+    }
+
+    #[test]
+    fn test_read_empty_toc() {
+        let xml = r#"<?xml version='1.0' encoding='utf-8'?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head><meta content="1394" name="dtb:uid"/><meta content="0" name="dtb:depth"/><meta content="0" name="dtb:totalPageCount"/><meta content="0" name="dtb:maxPageNumber"/></head><docTitle><text>book_title</text></docTitle><navMap><navPoint id="0-0"><navLabel><text></text></navLabel><content src="0.xhtml"></content><navPoint id="0-0"><navLabel><text></text></navLabel><content src="0.xhtml"></content></navPoint></navPoint></navMap></ncx>"#;
+        let mut book = EpubBook::default();
+        let _ = read_nav_xml(xml, &mut book).unwrap();
+
+        let n = book.nav();
+
+        assert_eq!(1, n.len());
+        assert_eq!("", n[0].title());
+        assert_eq!(1, n[0].child().len());
+        assert_eq!("", n[0].child()[0].title());
     }
 }

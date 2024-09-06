@@ -1,10 +1,9 @@
 use std::io::Write;
 
 use crate::{
-    arg::{self, ArgOption, CommandOptionDef, OptionDef, OptionType},
+    arg::{self},
     exec_err, msg,
 };
-use iepub::prelude::appender::write_metadata;
 use iepub::prelude::*;
 
 // 是否覆盖文件
@@ -57,13 +56,13 @@ macro_rules! create_command {
     };
 }
 fn write_file(path: &str, data: &[u8]) {
-    let mut fs = std::fs::File::options()
+    let _ = std::fs::File::options()
         .truncate(true)
         .create(true)
         .write(true)
         .open(path)
-        .unwrap();
-    fs.write_all(data).unwrap();
+        .and_then(|mut f| f.write_all(data))
+        .map_err(|e| exec_err!("err: {}", e));
 }
 
 fn create_dir(path: &str) {
@@ -85,8 +84,11 @@ pub(crate) mod epub {
     use crate::command::write_file;
     use crate::exec_err;
     use crate::Book;
+    use iepub::prelude::adapter::epub_to_mobi;
+    use iepub::prelude::appender::write_metadata;
     use iepub::prelude::EpubNav;
-    use iepub::prelude::{appender::write_metadata, EpubBook};
+    use iepub::prelude::IError;
+    use iepub::prelude::MobiWriter;
 
     use crate::{
         arg::{self, ArgOption, CommandOptionDef, OptionDef, OptionType},
@@ -124,39 +126,36 @@ pub(crate) mod epub {
             opts: &[ArgOption],
             _args: &[String],
         ) {
-            match book {
-                Book::EPUB(book) => {
-                    for ele in opts {
-                        match ele.key.as_str() {
-                            "title" => println!("{}", book.title()),
-                            "author" => println!("{}", book.creator().unwrap_or("")),
-                            "isbn" => println!("{}", book.identifier()),
-                            "publisher" => println!("{}", book.publisher().unwrap_or("")),
-                            "date" => println!("{}", book.date().unwrap_or("")),
-                            "desc" => println!("{}", book.description().unwrap_or("")),
-                            "format" => println!("{}", book.format().unwrap_or("")),
-                            "subject" => println!("{}", book.subject().unwrap_or("")),
-                            "contributor" => println!("{}", book.contributor().unwrap_or("")),
-                            "modify" => println!("{}", book.last_modify().unwrap_or("")),
-                            "generator" => println!("{}", book.generator().unwrap_or("")),
-                            "all" => {
-                                println!("title: {}", book.title());
-                                println!("author: {}", book.creator().unwrap_or(""));
-                                println!("isbn: {}", book.identifier());
-                                println!("publisher: {}", book.publisher().unwrap_or(""));
-                                println!("date: {}", book.date().unwrap_or(""));
-                                println!("desc: {}", book.description().unwrap_or(""));
-                                println!("format: {}", book.format().unwrap_or(""));
-                                println!("subject: {}", book.subject().unwrap_or(""));
-                                println!("contributor: {}", book.contributor().unwrap_or(""));
-                                println!("modify: {}", book.last_modify().unwrap_or(""));
-                                println!("generator: {}", book.generator().unwrap_or(""));
-                            }
-                            _ => {}
+            if let Book::EPUB(book) = book {
+                for ele in opts {
+                    match ele.key.as_str() {
+                        "title" => println!("{}", book.title()),
+                        "author" => println!("{}", book.creator().unwrap_or("")),
+                        "isbn" => println!("{}", book.identifier()),
+                        "publisher" => println!("{}", book.publisher().unwrap_or("")),
+                        "date" => println!("{}", book.date().unwrap_or("")),
+                        "desc" => println!("{}", book.description().unwrap_or("")),
+                        "format" => println!("{}", book.format().unwrap_or("")),
+                        "subject" => println!("{}", book.subject().unwrap_or("")),
+                        "contributor" => println!("{}", book.contributor().unwrap_or("")),
+                        "modify" => println!("{}", book.last_modify().unwrap_or("")),
+                        "generator" => println!("{}", book.generator().unwrap_or("")),
+                        "all" => {
+                            println!("title: {}", book.title());
+                            println!("author: {}", book.creator().unwrap_or(""));
+                            println!("isbn: {}", book.identifier());
+                            println!("publisher: {}", book.publisher().unwrap_or(""));
+                            println!("date: {}", book.date().unwrap_or(""));
+                            println!("desc: {}", book.description().unwrap_or(""));
+                            println!("format: {}", book.format().unwrap_or(""));
+                            println!("subject: {}", book.subject().unwrap_or(""));
+                            println!("contributor: {}", book.contributor().unwrap_or(""));
+                            println!("modify: {}", book.last_modify().unwrap_or(""));
+                            println!("generator: {}", book.generator().unwrap_or(""));
                         }
+                        _ => {}
                     }
                 }
-                _ => {}
             }
         }
     );
@@ -185,47 +184,44 @@ pub(crate) mod epub {
             opts: &[ArgOption],
             args: &[String],
         ) {
-            match book {
-                Book::EPUB(book) => {
-                    let cover = book.cover_mut().unwrap_or_else(|| {
-                        exec_err!("电子书没有封面");
-                    });
-                    let is_over = is_overiade(global_opts, opts);
+            if let Book::EPUB(book) = book {
+                let cover = book.cover_mut().unwrap_or_else(|| {
+                    exec_err!("电子书没有封面");
+                });
+                let is_over = is_overiade(global_opts, opts);
 
-                    if args.is_empty() {
-                        let mut path = String::new();
-                        path.push_str(cover.file_name());
+                if args.is_empty() {
+                    let mut path = String::new();
+                    path.push_str(cover.file_name());
 
-                        if std::path::Path::new(path.as_str()).exists()
-                            && !is_over
-                            && get_single_input("Override file？(y/n)")
-                                .unwrap()
-                                .to_lowercase()
-                                != "y"
-                        {
-                            return;
-                        }
-                        msg!("writing cover to {}", path);
-
-                        let data = cover.data().unwrap();
-                        write_file(path.as_str(), data);
+                    if std::path::Path::new(path.as_str()).exists()
+                        && !is_over
+                        && get_single_input("Override file？(y/n)")
+                            .unwrap()
+                            .to_lowercase()
+                            != "y"
+                    {
+                        return;
                     }
+                    msg!("writing cover to {}", path);
 
-                    for path in args {
-                        if std::path::Path::new(&path).exists()
-                            && !is_over
-                            && get_single_input("Override file？(y/n)")
-                                .unwrap()
-                                .to_lowercase()
-                                != "y"
-                        {
-                            continue;
-                        }
-                        msg!("writing cover to {}", path);
-                        write_file(path, cover.data().as_ref().unwrap());
-                    }
+                    let data = cover.data().unwrap();
+                    write_file(path.as_str(), data);
                 }
-                _ => {}
+
+                for path in args {
+                    if std::path::Path::new(&path).exists()
+                        && !is_over
+                        && get_single_input("Override file？(y/n)")
+                            .unwrap()
+                            .to_lowercase()
+                            != "y"
+                    {
+                        continue;
+                    }
+                    msg!("writing cover to {}", path);
+                    write_file(path, cover.data().as_ref().unwrap());
+                }
             }
         },
     );
@@ -253,14 +249,11 @@ pub(crate) mod epub {
             opts: &[ArgOption],
             _args: &[String],
         ) {
-            match book {
-                Book::EPUB(book) => {
-                    let print_href = opts.iter().find(|s| s.key == "s").map_or(false, |_| true);
-                    for ele in book.nav() {
-                        self.print_nav(0, ele, print_href);
-                    }
+            if let Book::EPUB(book) = book {
+                let print_href = opts.iter().find(|s| s.key == "s").map_or(false, |_| true);
+                for ele in book.nav() {
+                    self.print_nav(0, ele, print_href);
                 }
-                _ => {}
             }
         },
         fn print_dec(&self, dec: i32) {
@@ -303,71 +296,68 @@ pub(crate) mod epub {
             opts: &[ArgOption],
             _args: &[String],
         ) {
-            match book {
-                Book::EPUB(book) => {
-                    let dir_o = opts
-                        .iter()
-                        .find(|s| s.key == "d")
-                        .and_then(|f| f.value.as_ref());
-                    let is_over = is_overiade(global_opts, opts);
+            if let Book::EPUB(book) = book {
+                let dir_o = opts
+                    .iter()
+                    .find(|s| s.key == "d")
+                    .and_then(|f| f.value.as_ref());
+                let is_over = is_overiade(global_opts, opts);
 
-                    let prefix = opts
-                        .iter()
-                        .find(|s| s.key == "p")
-                        .and_then(|f| f.value.as_ref());
-                    let mut file_size = 1;
-                    if let Some(dir) = dir_o {
-                        for ele in book.assets_mut() {
-                            let name = ele.file_name().to_lowercase();
-                            if name.ends_with(".jpg")
-                                || name.ends_with(".jpeg")
-                                || name.ends_with(".gif")
-                                || name.ends_with(".png")
-                                || name.ends_with(".webp")
-                                || name.ends_with(".svg")
-                            {
-                                let mut file = format!("{dir}/{}", ele.file_name());
-                                if let Some(p) = prefix {
-                                    // 有前缀
-                                    file = format!(
-                                        "{dir}/{p}{}{}",
-                                        file_size,
-                                        &name[name.rfind('.').unwrap_or(0)..]
-                                    );
-                                    file_size += 1;
-                                }
-                                let n_dir = &file[0..file.rfind('/').unwrap_or(0)];
-                                if !std::path::Path::new(n_dir).exists() {
-                                    msg!("creating dir {}", n_dir);
-                                    // 创建目录
-                                    match std::fs::create_dir_all(n_dir) {
-                                        Ok(_) => {}
-                                        Err(e) => {
-                                            eprintln!("create dir {} fail, because {}", n_dir, e);
-                                            continue;
-                                        }
-                                    };
-                                }
-
-                                // 判断文件是否存在
-
-                                if std::path::Path::new(&file).exists()
-                                    && !is_over
-                                    && get_single_input("Override file？(y/n)")
-                                        .unwrap()
-                                        .to_lowercase()
-                                        != "y"
-                                {
-                                    continue;
-                                }
-                                msg!("writing file to {}", file);
-                                // 写入文件
-                                write_file(&file, ele.data().unwrap());
+                let prefix = opts
+                    .iter()
+                    .find(|s| s.key == "p")
+                    .and_then(|f| f.value.as_ref());
+                let mut file_size = 1;
+                if let Some(dir) = dir_o {
+                    for ele in book.assets_mut() {
+                        let name = ele.file_name().to_lowercase();
+                        if name.ends_with(".jpg")
+                            || name.ends_with(".jpeg")
+                            || name.ends_with(".gif")
+                            || name.ends_with(".png")
+                            || name.ends_with(".webp")
+                            || name.ends_with(".svg")
+                        {
+                            let mut file = format!("{dir}/{}", ele.file_name());
+                            if let Some(p) = prefix {
+                                // 有前缀
+                                file = format!(
+                                    "{dir}/{p}{}{}",
+                                    file_size,
+                                    &name[name.rfind('.').unwrap_or(0)..]
+                                );
+                                file_size += 1;
                             }
+                            let n_dir = &file[0..file.rfind('/').unwrap_or(0)];
+                            if !std::path::Path::new(n_dir).exists() {
+                                msg!("creating dir {}", n_dir);
+                                // 创建目录
+                                match std::fs::create_dir_all(n_dir) {
+                                    Ok(_) => {}
+                                    Err(e) => {
+                                        eprintln!("create dir {} fail, because {}", n_dir, e);
+                                        continue;
+                                    }
+                                };
+                            }
+
+                            // 判断文件是否存在
+
+                            if std::path::Path::new(&file).exists()
+                                && !is_over
+                                && get_single_input("Override file？(y/n)")
+                                    .unwrap()
+                                    .to_lowercase()
+                                    != "y"
+                            {
+                                continue;
+                            }
+                            msg!("writing file to {}", file);
+                            // 写入文件
+                            write_file(&file, ele.data().unwrap());
                         }
                     }
                 }
-                _ => {}
             }
         },
     );
@@ -410,77 +400,74 @@ pub(crate) mod epub {
             opts: &[ArgOption],
             _args: &[String],
         ) {
-            match book {
-                Book::EPUB(book) => {
-                    let dir = opts
-                        .iter()
-                        .find(|f| f.key == "d")
-                        .and_then(|f| f.value.as_ref());
+            if let Book::EPUB(book) = book {
+                let dir = opts
+                    .iter()
+                    .find(|f| f.key == "d")
+                    .and_then(|f| f.value.as_ref());
 
-                    let chaps: Vec<&String> = opts
-                        .iter()
-                        .filter(|s| s.key == "c" && s.values.is_some())
-                        .flat_map(|f| f.values.as_ref().unwrap())
-                        .collect();
+                let chaps: Vec<&String> = opts
+                    .iter()
+                    .filter(|s| s.key == "c" && s.values.is_some())
+                    .flat_map(|f| f.values.as_ref().unwrap())
+                    .collect();
 
-                    let is_over = is_overiade(global_opts, opts);
+                let is_over = is_overiade(global_opts, opts);
 
-                    let print_body = opts.iter().any(|f| f.key == "b");
+                let print_body = opts.iter().any(|f| f.key == "b");
 
-                    for ele in chaps {
-                        if let Some(chap) = book.get_chapter(ele) {
-                            if let Some(d) = dir {
-                                let mut p_dir: std::path::PathBuf =
-                                    std::path::Path::new(&d).join(chap.file_name());
-                                p_dir.pop(); // 获取在文件所在目录了
+                for ele in chaps {
+                    if let Some(chap) = book.get_chapter(ele) {
+                        if let Some(d) = dir {
+                            let mut p_dir: std::path::PathBuf =
+                                std::path::Path::new(&d).join(chap.file_name());
+                            p_dir.pop(); // 获取在文件所在目录了
 
-                                if !p_dir.exists() {
-                                    msg!("creating dir {:?}", p_dir);
-                                    match std::fs::create_dir_all(&p_dir) {
-                                        Ok(_) => {}
-                                        Err(e) => {
-                                            exec_err!(
-                                                "mkdir {:?} fail, because {}",
-                                                p_dir,
-                                                e.to_string()
-                                            );
-                                        }
-                                    };
-                                }
-                                let file = format!("{}/{}", d, chap.file_name());
-
-                                if std::path::Path::new(&file).exists()
-                                    && !is_over
-                                    && get_single_input("Override file？(y/n)")
-                                        .unwrap()
-                                        .to_lowercase()
-                                        != "y"
-                                {
-                                    continue;
-                                }
-                                if print_body {
-                                    write_file(file.as_str(), chap.data().unwrap())
-                                } else {
-                                    let d = chap.format().unwrap_or("".to_string());
-                                    write_file(file.as_str(), d.as_bytes());
-                                }
-                            } else {
-                                // 直接输出到终端
-                                println!(
-                                    "{}",
-                                    if print_body {
-                                        String::from_utf8(chap.data().unwrap().to_vec()).unwrap()
-                                    } else {
-                                        chap.format().unwrap_or("".to_string())
+                            if !p_dir.exists() {
+                                msg!("creating dir {:?}", p_dir);
+                                match std::fs::create_dir_all(&p_dir) {
+                                    Ok(_) => {}
+                                    Err(e) => {
+                                        exec_err!(
+                                            "mkdir {:?} fail, because {}",
+                                            p_dir,
+                                            e.to_string()
+                                        );
                                     }
-                                );
+                                };
+                            }
+                            let file = format!("{}/{}", d, chap.file_name());
+
+                            if std::path::Path::new(&file).exists()
+                                && !is_over
+                                && get_single_input("Override file？(y/n)")
+                                    .unwrap()
+                                    .to_lowercase()
+                                    != "y"
+                            {
+                                continue;
+                            }
+                            if print_body {
+                                write_file(file.as_str(), chap.data().unwrap())
+                            } else {
+                                let d = chap.format().unwrap_or("".to_string());
+                                write_file(file.as_str(), d.as_bytes());
                             }
                         } else {
-                            exec_err!("chap {} not exists", ele);
+                            // 直接输出到终端
+                            println!(
+                                "{}",
+                                if print_body {
+                                    String::from_utf8(chap.data().unwrap().to_vec()).unwrap()
+                                } else {
+                                    chap.format().unwrap_or("".to_string())
+                                }
+                            );
                         }
+                    } else {
+                        exec_err!("chap {} not exists", ele);
                     }
                 }
-                _ => {}
             }
         },
     );
@@ -518,47 +505,101 @@ pub(crate) mod epub {
             opts: &[ArgOption],
             _args: &[String],
         ) {
-            match book {
-                Book::EPUB(book) => {
-                    // 修改数据
-                    for ele in opts {
-                        let v = ele.value.as_ref().unwrap().as_str();
-                        match ele.key.as_str() {
-                            "title" => book.set_title(v),
-                            "author" => book.set_creator(v),
-                            "isbn" => book.set_identifier(v),
-                            "publisher" => book.set_publisher(v),
-                            "date" => book.set_date(v),
-                            "desc" => book.set_description(v),
-                            "format" => book.set_format(v),
-                            "subject" => book.set_subject(v),
-                            "contributor" => book.set_contributor(v),
-                            _ => {}
-                        }
+            if let Book::EPUB(book) = book {
+                // 修改数据
+                for ele in opts {
+                    let v = ele.value.as_ref().unwrap().as_str();
+                    match ele.key.as_str() {
+                        "title" => book.set_title(v),
+                        "author" => book.set_creator(v),
+                        "isbn" => book.set_identifier(v),
+                        "publisher" => book.set_publisher(v),
+                        "date" => book.set_date(v),
+                        "desc" => book.set_description(v),
+                        "format" => book.set_format(v),
+                        "subject" => book.set_subject(v),
+                        "contributor" => book.set_contributor(v),
+                        _ => {}
                     }
-
-                    msg!("metadata update finished, writing file now");
-                    // 输出文件
-                    let file = global_opts
-                        .iter()
-                        .find(|f| f.key == "i")
-                        .and_then(|f| f.value.as_ref())
-                        .unwrap();
-                    match write_metadata(file, book) {
-                        Ok(_) => {}
-                        Err(e) => {
-                            exec_err!("write file fail, because {:?}", e);
-                        }
-                    };
                 }
-                _ => {}
+
+                msg!("metadata update finished, writing file now");
+                // 输出文件
+                let file = global_opts
+                    .iter()
+                    .find(|f| f.key == "i")
+                    .and_then(|f| f.value.as_ref())
+                    .unwrap();
+                match write_metadata(file, book) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        exec_err!("write file fail, because {:?}", e);
+                    }
+                };
+            }
+        }
+    );
+    create_command!(
+        FormatConvert,
+        "convert",
+        {
+            arg::CommandOptionDef {
+                command: "convert".to_string(),
+                support_args: 0,
+                desc: "转换成mobi".to_string(),
+                opts: vec![
+                    OptionDef::create("f", "输出文件路径", OptionType::String, true),
+                    OptionDef::over(),
+                ],
+            }
+        },
+        fn exec(
+            &self,
+            book: &mut Book,
+            global_opts: &[ArgOption],
+            opts: &[ArgOption],
+            _args: &[String],
+        ) {
+            let mut path = opts
+                .iter()
+                .find(|f| f.key == "f")
+                .and_then(|f| f.value.clone())
+                .unwrap();
+            if let Book::EPUB(book) = book {
+                let _ = epub_to_mobi(book)
+                    .map(|mobi| {
+                        (
+                            mobi,
+                            !std::path::Path::new(path.as_str()).exists()
+                                || is_overiade(global_opts, opts)
+                                || get_single_input("Override file？(y/n)")
+                                    .unwrap()
+                                    .to_lowercase()
+                                    == "y",
+                        )
+                    })
+                    .map(|(mobi, over)| {
+                        if over {
+                            msg!("writing file {}", path);
+                            return std::fs::OpenOptions::new()
+                                .write(true)
+                                .create(true)
+                                .truncate(true)
+                                .open(&mut path)
+                                .map_or_else(|e| Err(IError::Io(e)), |fs| MobiWriter::new(fs))
+                                .and_then(|mut w| w.write(&mobi));
+                        }
+                        Ok(())
+                    })
+                    .is_err_and(|e| {
+                        exec_err!("err: {}", e);
+                    });
             }
         }
     );
 }
 
 pub(crate) mod mobi {
-    use std::f32::consts::E;
 
     use iepub::prelude::{adapter::mobi_to_epub, MobiNav};
 

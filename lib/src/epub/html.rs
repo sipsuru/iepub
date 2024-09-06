@@ -4,7 +4,7 @@ use quick_xml::events::Event;
 use std::collections::HashMap;
 
 /// 生成html
-pub(crate) fn to_html(chap: &mut EpubHtml) -> String {
+pub(crate) fn to_html(chap: &mut EpubHtml, append_title: bool) -> String {
     let mut css = String::new();
     if let Some(links) = chap.links() {
         for ele in links {
@@ -42,10 +42,15 @@ pub(crate) fn to_html(chap: &mut EpubHtml) -> String {
 {css}
 </head>
   <body>
-    <h1>{title}</h1>
+    {}
 {body}
   </body>
-</html>"#
+</html>"#,
+        if append_title {
+            format!(r#"<h1 style="texe-align: center">{}</h1>"#, title)
+        } else {
+            String::new()
+        }
     )
 }
 
@@ -454,7 +459,7 @@ mod test {
         };
 
         t.add_link(link);
-        let html = to_html(&mut t);
+        let html = to_html(&mut t, true);
 
         println!("{}", html);
 
@@ -469,7 +474,7 @@ mod test {
 <style type="text/css">#id{width:10%}</style>
 </head>
   <body>
-    <h1>title</h1>
+    <h1 style="texe-align: center">title</h1>
 ok
   </body>
 </html>"###

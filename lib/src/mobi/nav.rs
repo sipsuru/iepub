@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io::Cursor;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -8,27 +9,15 @@ use quick_xml::reader::Reader;
 use crate::common::{IError, IResult};
 
 use super::core::MobiNav;
-use std::io::Result;
 
 static mut ID: AtomicUsize = AtomicUsize::new(0);
 
 trait VecExt<T> {
-    fn last(&mut self) -> Option<&mut T>;
     /// 从后开始计算，例如0获取最后一个元素，1获取倒数第二个元素
     fn rget(&mut self, r_index: usize) -> Option<&mut T>;
-    /// 移除最后一个元素
-    fn pop(&mut self);
 }
 
 impl<T> VecExt<T> for Vec<T> {
-    fn last(&mut self) -> Option<&mut T> {
-        // if self.is_empty() {
-        //     return None;
-        // }
-        // self.get(self.len() - 1)
-
-        self.rget(0)
-    }
     fn rget(&mut self, r_index: usize) -> Option<&mut T> {
         if self.is_empty() {
             return None;
@@ -36,12 +25,6 @@ impl<T> VecExt<T> for Vec<T> {
 
         let index = self.len() - r_index - 1;
         self.get_mut(index)
-    }
-
-    fn pop(&mut self) {
-        if !self.is_empty() {
-            self.remove(self.len() - 1);
-        }
     }
 }
 /// 读取目录导航，要求参数只包括目录部分
@@ -60,7 +43,7 @@ pub(crate) fn read_nav_xml(xml: Vec<u8>) -> IResult<Vec<MobiNav>> {
                 })?;
 
                 if name == "a" {
-                    // 这里的上一级应该只有 a, 上一级是 blockquote 的情况 在text的时候交给其他方法处理了
+                    // 这里的上一级应该只有 p, 上一级是 blockquote 的情况 在text的时候交给其他方法处理了
                     let pa = &parent[parent.len() - 1];
                     if pa == "p" {
                         let mut n = MobiNav::default(unsafe { ID.fetch_add(1, Ordering::SeqCst) });
@@ -68,7 +51,13 @@ pub(crate) fn read_nav_xml(xml: Vec<u8>) -> IResult<Vec<MobiNav>> {
                             n.href = pos;
                         }
                         now = Some(n);
-                        // nav.push(n);
+                    } else if pa == "blockquote" {
+                        // 直接读到这里，说明没有二级目录，直接就是一级目录，所以需要
+                        let mut n = MobiNav::default(unsafe { ID.fetch_add(1, Ordering::SeqCst) });
+                        if let Some(pos) = e.get_file_pos() {
+                            n.href = pos;
+                        }
+                        now = Some(n);
                     }
                 }
                 parent.push(name);
@@ -77,17 +66,30 @@ pub(crate) fn read_nav_xml(xml: Vec<u8>) -> IResult<Vec<MobiNav>> {
                 let name = String::from_utf8(e.name().as_ref().to_vec()).map_err(|_| {
                     std::io::Error::new(std::io::ErrorKind::InvalidInput, "not a tagx")
                 })?;
-
                 parent.pop();
+                if name == "a" && now.is_some() {
+                    // 如果a标签内容为空或者只有空白， text不会被触发，只有end
+                    let pa = &parent[parent.len() - 1];
+                    if pa == "p" {
+                        // 读取这一卷下的目录
+                        let has_more = read_blockquote(&mut reader, now.as_mut().unwrap())?;
+                        nav.push(now.clone().unwrap());
+                        now = None;
 
-                if name == "a" {
-                    if parent.last().unwrap_or(&mut "".to_string()) == "p" {
-                        // 读取卷标题结束
+                        if has_more {
+                            parent.push("p".to_string());
+                        } else {
+                            // 没有东西，直接结束
+                            return Ok(nav);
+                        }
+                    } else if pa == "blockquote" {
+                        nav.push(now.unwrap());
+                        now = None;
                     }
                 }
             }
             Ok(Event::Text(e)) => {
-                if parent.last().unwrap_or(&mut "".to_string()) == "a" {
+                if parent.last_mut().unwrap_or(&mut "".to_string()) == "a" {
                     let mut temp = String::new();
                     // 添加目录，
                     let ppa = parent.rget(1).unwrap_or(&mut temp);
@@ -97,15 +99,36 @@ pub(crate) fn read_nav_xml(xml: Vec<u8>) -> IResult<Vec<MobiNav>> {
                         if now.is_some() {
                             now.as_mut().unwrap().title = match e.unescape() {
                                 Ok(v) => v.deref().to_string(),
-                                Err(_) => {
-                                    return Err(crate::common::IError::InvalidArchive("nav error"))
-                                }
+                                Err(e) => return Err(crate::common::IError::Xml(e)),
                             };
 
                             // 读取这一卷下的目录
                             let has_more = read_blockquote(&mut reader, now.as_mut().unwrap())?;
                             nav.push(now.clone().unwrap());
                             now = None;
+
+                            if has_more {
+                                parent.push("p".to_string());
+                            } else {
+                                // 没有东西，直接结束
+                                return Ok(nav);
+                            }
+                        }
+                    } else if ppa == "blockquote" {
+                        // 一级目录
+                        if now.is_some() {
+                            now.as_mut().unwrap().title = match e.unescape() {
+                                Ok(v) => v.deref().to_string(),
+                                Err(e) => return Err(crate::common::IError::Xml(e)),
+                            };
+                            nav.push(now.unwrap());
+                            now = None;
+
+                            let mut temp = MobiNav::default(0);
+                            let has_more = read_blockquote(&mut reader, &mut temp)?;
+                            for ele in temp.children {
+                                nav.push(ele);
+                            }
 
                             if has_more {
                                 parent.push("p".to_string());
@@ -121,7 +144,7 @@ pub(crate) fn read_nav_xml(xml: Vec<u8>) -> IResult<Vec<MobiNav>> {
             Ok(Event::Eof) => {
                 break;
             }
-            Err(e) => {
+            Err(_) => {
                 break;
             }
             _ => (),
@@ -130,10 +153,152 @@ pub(crate) fn read_nav_xml(xml: Vec<u8>) -> IResult<Vec<MobiNav>> {
     Ok(nav)
 }
 
-fn read_blockquote(
-    reader: &mut Reader<Cursor<Vec<u8>>>,
-    parent: &mut MobiNav,
-) -> IResult<bool> {
+/// 记录目录对应的filepos标签所在的索引，后续生成完章节后，需要回来修改属性
+pub(crate) struct NavFilePos {
+    pub(crate) index: usize,
+    /// 占位符长度
+    pub(crate) length: usize,
+    /// 对应的nav id
+    id: usize,
+    /// 对应的章节id
+    pub(crate) chap_id: usize,
+    pub(crate) child: Vec<NavFilePos>,
+}
+
+/// 查找 章节 对应的filepos 索引
+pub(crate) fn find_chap_file_pos(pos: &[NavFilePos], chap_id: usize) -> Vec<&NavFilePos> {
+    let mut res = Vec::new();
+    for ele in pos {
+        if ele.chap_id == chap_id {
+            res.push(ele);
+        }
+        res.append(&mut find_chap_file_pos(&ele.child, chap_id));
+    }
+
+    res
+}
+
+fn generate_human_nav_item_xml(start: usize, nav: &[MobiNav]) -> (Vec<u8>, Vec<NavFilePos>) {
+    let mut text = Vec::new();
+    let mut pos = Vec::new();
+    for (index, ele) in nav.iter().enumerate() {
+        text.append(
+            &mut format!(r#"<li value="{index}" height="0pt" width="0pt"><a filepos="#)
+                .as_bytes()
+                .to_vec(),
+        );
+        let len = 10;
+        let mut file_pos = NavFilePos {
+            index: start + text.len(),
+            length: len,
+            id: ele.id(),
+            child: Vec::new(),
+            chap_id: ele.chap_id,
+        };
+        let mut title = ele.title();
+        if title.len() == 0 {
+            // 如果没有title的话，读取xml的时候这个章节就读不到了
+            title = "&#x20;"
+        }
+        text.append(
+            &mut format!(r#"{:0width$}>{}</a>"#, 0, title, width = len)
+                .as_bytes()
+                .to_vec(),
+        );
+
+        if ele.children().len() > 0 {
+            text.append(&mut r#"<ol height="0pt" width="0pt">"#.as_bytes().to_vec());
+
+            let (mut n_text, f) =
+                generate_human_nav_item_xml(start + text.len(), ele.children().as_slice());
+            text.append(&mut n_text);
+            file_pos.child = f;
+
+            text.append(&mut r#"</ol>"#.as_bytes().to_vec());
+        }
+
+        text.append(&mut "</li>".as_bytes().to_vec());
+
+        pos.push(file_pos);
+    }
+
+    (text, pos)
+}
+
+/// 用于开头的目录导航
+pub(crate) fn generate_human_nav_xml(
+    start: usize,
+    nav: &[MobiNav],
+    title: &str,
+) -> (Vec<u8>, Vec<NavFilePos>) {
+    let mut text = Vec::new();
+    text.append(&mut format!(r#"<p height="1em" width="0pt"><font size="6"><b>{title}</b></font></p><div height="1em"></div><ol width="0pt">"#).as_bytes().to_vec());
+
+    let (mut n_text, pos) = generate_human_nav_item_xml(start + text.len(), nav);
+    text.append(&mut n_text);
+    text.append(&mut "</ol>".as_bytes().to_vec());
+
+    (text, pos)
+}
+
+fn generate_reader_nav_item_xml(
+    start: usize,
+    nav: &[MobiNav],
+    pos_value: &HashMap<usize, usize>,
+) -> Vec<u8> {
+    let mut text = Vec::new();
+    let len = 10;
+    for ele in nav {
+        if ele.children().len() == 0 {
+            let t = format!(
+                r#"<blockquote height="0pt" width="0pt"><a filepos={:0width$}>{}</a></blockquote>"#,
+                pos_value.get(&ele.chap_id).unwrap_or(&0),
+                ele.title(),
+                width = len
+            );
+            text.append(&mut t.as_bytes().to_vec());
+        } else {
+            let mut title = ele.title();
+            if title.len() == 0 {
+                // 如果没有title的话，读取xml的时候这个章节就读不到了
+                title = "&#x20;"
+            }
+            let t = format!(
+                r#"<p height="1em" width="-19pt"><a filepos={:0width$}>{}</a></p>"#,
+                pos_value.get(&ele.chap_id).unwrap_or(&0),
+                title,
+                width = len
+            );
+            text.append(&mut t.as_bytes().to_vec());
+
+            let mut n_text = generate_reader_nav_item_xml(
+                start + text.len(),
+                ele.children().as_slice(),
+                pos_value,
+            );
+            text.append(&mut n_text);
+        }
+    }
+    text
+}
+
+/// 生成结尾的给阅读器的目录xml
+pub(crate) fn generate_reader_nav_xml(
+    start: usize,
+    nav: &[MobiNav],
+    pos_value: &HashMap<usize, usize>,
+) -> Vec<u8> {
+    let mut text = Vec::new();
+    text.append(&mut format!(r#"<p height="1em" width="0pt" align="center"><font size="7"><b>Table of Contents</b></font></p>"#).as_bytes().to_vec());
+
+    let mut n_text = generate_reader_nav_item_xml(text.len() + start, nav, pos_value);
+
+    text.append(&mut n_text);
+
+    text
+}
+
+fn read_blockquote(reader: &mut Reader<Cursor<Vec<u8>>>, parent: &mut MobiNav) -> IResult<bool> {
     let mut buf = Vec::new();
 
     let mut now: Option<MobiNav> = None;
@@ -143,7 +308,9 @@ fn read_blockquote(
                 let name = String::from_utf8(e.name().as_ref().to_vec())?;
 
                 if name == "a" {
-                    now = Some(MobiNav::default(unsafe { ID.fetch_add(1, Ordering::SeqCst) }));
+                    now = Some(MobiNav::default(unsafe {
+                        ID.fetch_add(1, Ordering::SeqCst)
+                    }));
 
                     // quick_xml 不支持 unquoted 的属性值解析，所以只能想办法自己来了
                     if let Some(pos) = e.get_file_pos() {
@@ -199,7 +366,7 @@ pub(crate) fn read_guide_filepos(html: &[u8]) -> IResult<Option<usize>> {
             Ok(Event::Start(e)) => {
                 let name = String::from_utf8(e.name().as_ref().to_vec())?;
                 if name == "reference"
-                    && parent.last().unwrap_or(&mut "".to_string()) == "guide"
+                    && parent.last_mut().unwrap_or(&mut "".to_string()) == "guide"
                     && parent.rget(1).unwrap_or(&mut "".to_string()) == "head"
                     && parent.rget(2).unwrap_or(&mut "".to_string()) == "html"
                 {
@@ -310,9 +477,16 @@ impl<'a> FilePosAttr for BytesStart<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use quick_xml::events::BytesStart;
 
-    use crate::mobi::nav::{read_guide_filepos, FilePosAttr};
+    use crate::{
+        mobi::nav::{
+            generate_human_nav_xml, generate_reader_nav_xml, read_guide_filepos, FilePosAttr,
+        },
+        prelude::MobiNav,
+    };
 
     use super::read_nav_xml;
 
@@ -542,10 +716,117 @@ mod tests {
 
         assert_eq!(8, nav[0].children.len());
 
-        assert_eq!("第七卷", nav.last().unwrap().title);
-        assert_eq!("后记", nav.last().unwrap().children.last().unwrap().title);
+        assert_eq!("第七卷", nav.last_mut().unwrap().title);
+        assert_eq!(
+            "后记",
+            nav.last_mut().unwrap().children.last_mut().unwrap().title
+        );
     }
 
+    #[test]
+    fn test_no_level_xml() {
+        let xml = r#"<p height="1em" width="0pt" align="center"><font size="7"><b>Table of Contents</b></font></p><blockquote height="0pt" width="0pt"><a filepos=0000000297>标题</a></blockquote>"#;
+
+        let n = read_nav_xml(xml.as_bytes().to_vec()).unwrap();
+
+        assert_eq!(1, n.len());
+        assert_eq!("标题", n[0].title);
+        assert_eq!(297, n[0].href);
+
+        let xml = r#"<p height="1em" width="0pt" align="center"><font size="7"><b>Table of Contents</b></font></p><blockquote height="0pt" width="0pt"><a filepos=0000000297>标题</a></blockquote><blockquote height="0pt" width="0pt"><a filepos=0000000298>标题2</a></blockquote>"#;
+
+        let n = read_nav_xml(xml.as_bytes().to_vec()).unwrap();
+
+        assert_eq!(2, n.len());
+        assert_eq!("标题", n[0].title);
+        assert_eq!(297, n[0].href);
+
+        assert_eq!("标题2", n[1].title);
+        assert_eq!(298, n[1].href);
+    }
+
+    #[test]
+    fn test_empty_xml() {
+        // let xml = "<p height=\"1em\" width=\"0pt\" align=\"center\"><font size=\"7\"><b>Table of Contents</b></font></p><blockquote height=\"0pt\" width=\"0pt\"><a filepos=0000000303>&#x20;</a></blockquote>";
+
+        // let n = read_nav_xml(xml.as_bytes().to_vec()).unwrap();
+
+        // assert_eq!(1, n.len());
+        // assert_eq!(" ", n[0].title());
+
+        let xml = "<p height=\"1em\" width=\"0pt\" align=\"center\"><font size=\"7\"><b>Table of Contents</b></font></p><blockquote height=\"0pt\" width=\"0pt\"><a filepos=0000000303></a></blockquote>";
+
+        let n = read_nav_xml(xml.as_bytes().to_vec()).unwrap();
+
+        assert_eq!(1, n.len());
+        assert_eq!("", n[0].title());
+
+        let xml = r#"<p height="1em" width="0pt" align="center">
+            <font size="7">
+                <b>Table of Contents</b>
+            </font>
+        </p>
+        <p height="1em" width="-19pt">
+            <a filepos=0000005452>第一卷 天狼星天文台杀人事件</a>
+        </p>
+        <blockquote height="0pt" width="0pt">
+            <a filepos=0000005452></a>
+        </blockquote>"#
+            ;
+        let n = read_nav_xml(xml.as_bytes().to_vec()).unwrap();
+
+        assert_eq!(1, n.len());
+        assert_eq!("第一卷 天狼星天文台杀人事件", n[0].title());
+
+        assert_eq!(1, n[0].children().len());
+        assert_eq!("", n[0].children().next().unwrap().title());
+
+
+        let xml = r#"<p height="1em" width="0pt" align="center">
+        <font size="7">
+            <b>Table of Contents</b>
+        </font>
+    </p>
+    <p height="1em" width="-19pt">
+        <a filepos=0000005452></a>
+    </p>
+    <blockquote height="0pt" width="0pt">
+        <a filepos=0000005452></a>
+    </blockquote>"#
+        ;
+    let n = read_nav_xml(xml.as_bytes().to_vec()).unwrap();
+
+    assert_eq!(1, n.len());
+    assert_eq!("", n[0].title());
+
+    assert_eq!(1, n[0].children().len());
+    assert_eq!("", n[0].children().next().unwrap().title());
+
+    }
+
+    #[test]
+    fn test_mix_level_xml() {
+        let xml = r#"<p height="1em" width="0pt" align="center"><font size="7"><b>Table of Contents</b></font></p><blockquote height="0pt" width="0pt"><a filepos=0000000297>标题</a></blockquote><blockquote height="0pt" width="0pt"><a filepos=0000000297>标题2</a></blockquote><p height="1em" width="-19pt">
+            <a filepos=0000005452>第一卷 天狼星天文台杀人事件</a>
+        </p>
+        <blockquote height="0pt" width="0pt">
+            <a filepos=0000005452>插图</a>
+        </blockquote>
+        <blockquote height="0pt" width="0pt">
+            <a filepos=0000007756>第一章 天狼星天文台杀人事件1</a>
+        </blockquote>"#;
+
+        let n = read_nav_xml(xml.as_bytes().to_vec()).unwrap();
+
+        assert_eq!(3, n.len());
+        assert_eq!("标题", n[0].title);
+        assert_eq!(297, n[0].href);
+
+        assert_eq!("第一卷 天狼星天文台杀人事件", n[2].title);
+        assert_eq!(2, n[2].children.len());
+        assert_eq!("第一章 天狼星天文台杀人事件1", n[2].children[1].title);
+        assert_eq!(7756, n[2].children[1].href);
+    }
     #[test]
     fn test_read_guide_filepos() {
         let mut html = r#"<html>
@@ -577,5 +858,97 @@ mod tests {
     </head>
     <body></body></html>"#;
         assert_eq!(None, read_guide_filepos(html.as_bytes()).unwrap());
+    }
+
+    #[test]
+    fn test_generate_human_nav_xml() {
+        let nav = vec![
+            MobiNav {
+                id: 1,
+                title: "第一卷".to_string(),
+                href: 1,
+                chap_id: 0,
+                children: vec![
+                    MobiNav {
+                        id: 2,
+                        title: "第一卷第一章".to_string(),
+                        href: 1,
+                        children: Vec::new(),
+                        chap_id: 0,
+                    },
+                    MobiNav {
+                        id: 3,
+                        title: "第一卷第2章".to_string(),
+                        href: 1,
+                        children: Vec::new(),
+                        chap_id: 0,
+                    },
+                ],
+            },
+            MobiNav {
+                id: 4,
+                title: "第2卷".to_string(),
+                href: 1,
+                children: Vec::new(),
+                chap_id: 0,
+            },
+        ];
+
+        let (text, pos) = generate_human_nav_xml(0, nav.as_slice(), "测试标题");
+
+        assert_eq!(
+            r#"<p height="1em" width="0pt"><font size="6"><b>测试标题</b></font></p><div height="1em"></div><ol width="0pt"><li value="0" height="0pt" width="0pt"><a filepos=0000000000>第一卷</a><ol height="0pt" width="0pt"><li value="0" height="0pt" width="0pt"><a filepos=0000000000>第一卷第一章</a></li><li value="1" height="0pt" width="0pt"><a filepos=0000000000>第一卷第2章</a></li></ol></li><li value="1" height="0pt" width="0pt"><a filepos=0000000000>第2卷</a></li></ol>"#,
+            String::from_utf8(text).unwrap()
+        );
+        assert_eq!(163, pos[0].index);
+        assert_eq!(266, pos[0].child[0].index);
+    }
+
+    #[test]
+    fn test_generate_reader_nav_xml() {
+        let nav = vec![
+            MobiNav {
+                id: 1,
+                title: "第一卷".to_string(),
+                href: 1,
+                chap_id: 1,
+                children: vec![
+                    MobiNav {
+                        id: 2,
+                        title: "第一卷第一章".to_string(),
+                        href: 1,
+                        children: Vec::new(),
+                        chap_id: 2,
+                    },
+                    MobiNav {
+                        id: 3,
+                        title: "第一卷第2章".to_string(),
+                        href: 1,
+                        children: Vec::new(),
+                        chap_id: 3,
+                    },
+                ],
+            },
+            MobiNav {
+                id: 4,
+                title: "第2卷".to_string(),
+                href: 1,
+                children: Vec::new(),
+                chap_id: 4,
+            },
+        ];
+        let mut pos_value: HashMap<usize, usize> = HashMap::new();
+
+        pos_value.insert(1, 54);
+        pos_value.insert(2, 55);
+        pos_value.insert(3, 56);
+        pos_value.insert(4, 57);
+
+        let text = generate_reader_nav_xml(0, nav.as_slice(), &pos_value);
+
+        assert_eq!(
+            r#"<p height="1em" width="0pt" align="center"><font size="7"><b>Table of Contents</b></font></p><p height="1em" width="-19pt"><a filepos=0000000054>第一卷</a></p><blockquote height="0pt" width="0pt"><a filepos=0000000055>第一卷第一章</a></blockquote><blockquote height="0pt" width="0pt"><a filepos=0000000056>第一卷第2章</a></blockquote><blockquote height="0pt" width="0pt"><a filepos=0000000057>第2卷</a></blockquote>"#,
+            String::from_utf8(text).unwrap()
+        );
     }
 }

@@ -4,15 +4,28 @@ pub struct MobiHtml {
     title: String,
     /// 原始数据，经编解码后方可阅读
     raw: Option<Vec<u8>>,
-    /// 在整个文本中的索引位置
+    /// 在整个文本中的索引位置，读取时使用
     index: usize,
+    /// 唯一id，写入时需要 确保nav能正确指向章节，否则目录会错误
+    pub(crate) id: usize,
     /// 可阅读的文本
     data: String,
 
-    nav_id: usize,
+    pub(crate) nav_id: usize,
 }
 
 impl MobiHtml {
+    pub fn new(id: usize) -> Self {
+        Self {
+            title: String::new(),
+            raw: None,
+            index: 0,
+            id,
+            data: String::new(),
+            nav_id: 0,
+        }
+    }
+
     pub fn title(&self) -> &str {
         &self.title
     }
@@ -20,8 +33,18 @@ impl MobiHtml {
         &self.data
     }
 
-    pub fn nav_id(&self)->usize{
+    pub fn nav_id(&self) -> usize {
         self.nav_id
+    }
+
+    pub fn with_data(mut self, value: &str) -> Self {
+        self.data = value.to_string();
+        self
+    }
+
+    pub fn with_title(mut self, value: &str) -> Self {
+        self.title = value.to_string();
+        self
     }
 }
 
@@ -32,27 +55,56 @@ pub struct MobiNav {
     pub(crate) title: String,
     pub(crate) href: usize,
     pub(crate) children: Vec<MobiNav>,
+    /// 写入时指向章节
+    pub(crate) chap_id: usize,
 }
 
 impl MobiNav {
     pub fn title(&self) -> &str {
         &self.title
     }
+    /// 读取时使用该方法
     pub fn default(id: usize) -> Self {
         Self {
             id,
             title: Default::default(),
             href: Default::default(),
             children: Default::default(),
+            chap_id: 0,
         }
     }
 
-    pub fn id(&self)->usize{
+    /// 写入时使用该方法
+    pub fn new(id: usize, chap_id: usize) -> Self {
+        Self {
+            id,
+            title: Default::default(),
+            href: Default::default(),
+            children: Default::default(),
+            chap_id,
+        }
+    }
+
+    pub fn id(&self) -> usize {
         self.id
     }
 
-    pub fn children(&self)->std::slice::Iter<MobiNav>{
+    pub fn children(&self) -> std::slice::Iter<MobiNav> {
         self.children.iter()
+    }
+
+    pub fn with_chap_id(mut self, chap_id: usize) -> Self {
+        self.chap_id = chap_id;
+        self
+    }
+
+    pub fn with_title(mut self, title: &str) -> Self {
+        self.title = title.to_string();
+        self
+    }
+
+    pub fn add_child(&mut self, child: MobiNav) {
+        self.children.push(child);
     }
 }
 
@@ -69,6 +121,24 @@ fn flatten_nav(nav: &[MobiNav]) -> Vec<&MobiNav> {
     }
     n
 }
+
+/// 给nav设置对应的章节chap_id
+fn set_nav_id(nav: &mut [MobiNav], nav_id: usize, chap_id: usize) -> bool {
+    for ele in nav {
+        if ele.id == nav_id {
+            ele.chap_id = chap_id;
+            return true;
+        }
+
+        if set_nav_id(&mut ele.children, nav_id, chap_id) {
+            // 下级找到，当前也要设置
+            ele.chap_id = chap_id;
+            return true;
+        }
+    }
+    false
+}
+
 #[derive(Debug)]
 pub struct MobiAssets {
     pub(crate) _file_name: String,
@@ -78,15 +148,28 @@ pub struct MobiAssets {
 }
 
 impl MobiAssets {
+    pub fn new(data: Vec<u8>) -> Self {
+        MobiAssets {
+            _file_name: String::new(),
+            media_type: String::new(),
+            _data: Some(data),
+            recindex: 0,
+        }
+    }
     pub fn data(&self) -> Option<&[u8]> {
         self._data.as_ref().map(|f| f.as_slice())
     }
     pub fn file_name(&self) -> &str {
         &self._file_name
     }
+
+    pub fn with_file_name(mut self, file_name: &str) -> Self {
+        self._file_name = file_name.to_string();
+        self
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct MobiBook {
     info: crate::common::BookInfo,
     /// 上次修改时间
@@ -100,8 +183,7 @@ pub struct MobiBook {
     /// 所有图片
     images: Vec<MobiAssets>,
     /// 目录
-    nav: Option< Vec<MobiNav>>,
-
+    nav: Option<Vec<MobiNav>>,
 }
 
 impl MobiBook {
@@ -167,6 +249,10 @@ impl MobiBook {
         self.images.iter()
     }
 
+    pub fn add_assets(&mut self, asset: MobiAssets) {
+        self.images.push(asset)
+    }
+
     pub fn chapters_mut(&mut self) -> std::slice::IterMut<MobiHtml> {
         self.chapters.iter_mut()
     }
@@ -175,17 +261,31 @@ impl MobiBook {
         self.chapters.iter()
     }
 
-    pub fn nav(&self)->Option<std::slice::Iter<MobiNav>>{
-        self.nav.as_ref().map(|f|f.iter())
+    pub fn add_chapter(&mut self, chap: MobiHtml) {
+        self.chapters.push(chap);
     }
 
+    pub fn nav(&self) -> Option<std::slice::Iter<MobiNav>> {
+        self.nav.as_ref().map(|f| f.iter())
+    }
+
+    pub fn add_nav(&mut self, value: MobiNav) {
+        if let Some(nav) = &mut self.nav {
+            nav.push(value);
+        } else {
+            self.nav = Some(vec![value]);
+        }
+    }
 }
 
-use std::io::{Read, Seek};
+use std::{
+    io::{Read, Seek},
+    sync::atomic::AtomicUsize,
+};
 
 use crate::common::IResult;
 
-use super::reader::{do_time_format, MobiReader};
+use super::{common::do_time_format, reader::MobiReader};
 
 impl<T: Read + Seek> MobiReader<T> {
     pub fn load(&mut self) -> IResult<MobiBook> {
@@ -194,11 +294,11 @@ impl<T: Read + Seek> MobiReader<T> {
         let mut chapters = Vec::new();
         let sec = self.load_text()?;
 
-        let nav = self.read_nav_from_text(&sec[..])?;
+        let mut nav = self.read_nav_from_text(&sec[..])?;
 
         // 根据目录拆分文本
-
-        if let Some(n) =&nav {
+        let id: AtomicUsize = AtomicUsize::new(0);
+        if let Some(n) = &nav {
             chapters.append(
                 &mut flatten_nav(n)
                     .iter()
@@ -206,6 +306,7 @@ impl<T: Read + Seek> MobiReader<T> {
                     .filter(|s| s.0.is_some())
                     .map(|f| (f.0.unwrap(), f.1))
                     .map(|(sec, nav)| MobiHtml {
+                        id: id.fetch_add(1, std::sync::atomic::Ordering::Release),
                         nav_id: nav.id,
                         index: sec.index,
                         title: nav.title.clone(),
@@ -214,6 +315,12 @@ impl<T: Read + Seek> MobiReader<T> {
                     })
                     .collect(),
             );
+            // 将 chap_id 赋予 nav
+            if let Some(nav) = &mut nav {
+                for ele in &chapters {
+                    let _ = set_nav_id(nav, ele.nav_id, ele.id);
+                }
+            }
         }
 
         let cover = self.read_cover()?;
@@ -232,7 +339,7 @@ impl<T: Read + Seek> MobiReader<T> {
                 recindex: 0,
             }),
             images: self.read_all_image()?,
-            nav:nav
+            nav,
         })
     }
 }
@@ -267,10 +374,9 @@ mod tests {
 
         println!("======");
         for ele in &book.chapters {
-            println!("{} {}",ele.title,ele.nav_id);
+            println!("{} {}", ele.title, ele.nav_id);
         }
         println!("======");
-        println!("{:?}",book.nav);
-
+        println!("{:?}", book.nav);
     }
 }

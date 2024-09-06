@@ -3,7 +3,7 @@
 //! tool -i file.epub get-cover 1.jpg
 //!
 
-use std::{env, fs::File, process::exit};
+use std::{env, fs::File};
 
 use arg::{Arg, ArgOption, OptionDef, OptionType};
 use commands::{epub, mobi};
@@ -45,7 +45,7 @@ mod commands {
         };
     }
     pub(crate) mod epub {
-        use crate::{command::epub::*, Command};
+        use crate::command::epub::*;
 
         // 注册子命令
         register_command!(
@@ -54,7 +54,8 @@ mod commands {
             BookInfoSetter,
             NavScanner,
             GetImage,
-            GetChapter
+            GetChapter,
+            FormatConvert
         );
     }
     pub(crate) mod mobi {
@@ -175,7 +176,7 @@ fn main() {
         // epub
         match read_from_file(path.as_str()) {
             Ok(mut book) => {
-                exec_epub(&arg, &mut book, &exe_file_name.as_str());
+                exec_epub(&arg, &mut book, exe_file_name.as_str());
             }
             Err(e) => {
                 exec_err!("err: {}", e);
@@ -189,7 +190,7 @@ fn main() {
         .and_then(|mut f| f.load())
         {
             Ok(mut book) => {
-                exec_mobi(&arg, &mut book, &exe_file_name.as_str());
+                exec_mobi(&arg, &mut book, exe_file_name.as_str());
             }
             Err(e) => {
                 exec_err!("err: {}", e);

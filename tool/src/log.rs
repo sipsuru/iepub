@@ -1,4 +1,3 @@
-use crate::arg::ArgOption;
 
 pub(crate) static mut IS_LOG: bool = false;
 
