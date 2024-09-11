@@ -1,0 +1,4 @@
+FROM inkbox/rust:1.80.1
+WORKDIR /iepub
+COPY . /iepub
+RUN apt install -y bsdmainutils unzip 

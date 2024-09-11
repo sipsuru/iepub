@@ -6,3 +6,4 @@ Cargo.lock
 *.md
 .gitignore
 Dockerfile
+Dockerfile.dev
