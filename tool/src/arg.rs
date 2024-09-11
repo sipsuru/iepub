@@ -379,7 +379,7 @@ mod tests {
         assert_eq!(2, arg.0.opts.len());
         assert_eq!("i", arg.0.opts.last().unwrap().key);
         assert_eq!(
-            "弹丸.epub",
+            "弹丸论破雾切 - 北山猛邦.epub",
             arg.0.opts.last().as_ref().unwrap().value.as_ref().unwrap()
         );
     }

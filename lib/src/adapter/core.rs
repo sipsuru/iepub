@@ -1,5 +1,3 @@
-use std::string::{FromUtf16Error, FromUtf8Error};
-
 use crate::{
     common::{IError, IResult},
     mobi::{builder::MobiBuilder, core::MobiAssets, image::get_attr_value},
@@ -45,6 +43,8 @@ fn get_mobi_assets_file_name(a: &MobiAssets) -> String {
 /// # Examples
 /// ```no_run
 /// use iepub::prelude::*;
+/// use iepub::prelude::adapter::mobi_to_epub;
+///
 /// let mut book = std::fs::File::open(std::path::PathBuf::from("example.mobi"))
 /// .map_err(|e| IError::Io(e))
 /// .and_then(|f| MobiReader::new(f))
@@ -52,7 +52,7 @@ fn get_mobi_assets_file_name(a: &MobiAssets) -> String {
 /// .unwrap();
 ///
 /// let mut epub = mobi_to_epub(&mut book).unwrap();
-/// epub.write("convert.epub").unwrap();
+/// EpubWriter::write_to_mem(&mut epub).unwrap();
 /// ```
 pub fn mobi_to_epub(mobi: &mut MobiBook) -> IResult<EpubBook> {
     let mut builder = EpubBuilder::new();
@@ -265,10 +265,13 @@ pub fn generate_text_img_xml(html: &str, current: &crate::path::Path) -> Vec<u8>
 ///
 /// # Examples
 /// ```no_run
+/// use iepub::prelude::*;
+/// use iepub::prelude::adapter::epub_to_mobi;
+/// use iepub::prelude::read_from_file;
+///
 /// let mut epub = read_from_file("example.epub").unwrap();
 /// let mut mobi = epub_to_mobi(&mut epub).unwrap();
 /// MobiWriter::new(std::fs::File::create("conver.mobi").unwrap())
-/// .unwrap()
 /// .with_append_title(false)
 /// .write(&mobi)
 /// .unwrap();
@@ -354,8 +357,8 @@ mod tests {
     use crate::{
         adapter::core::convert_epub_html_img,
         common::IError,
-        mobi::{core::MobiAssets, image::get_attr_value},
-        prelude::{read_from_file, EpubBuilder, EpubHtml, MobiReader, MobiWriter},
+        mobi::core::MobiAssets,
+        prelude::{EpubBuilder, EpubHtml, EpubWriter, MobiReader, MobiWriter},
     };
 
     use super::{convert_mobi_html_data, epub_to_mobi, mobi_to_epub};
@@ -374,8 +377,8 @@ mod tests {
             .unwrap();
 
         let mut epub = mobi_to_epub(&mut book).unwrap();
-
-        epub.write("convert.epub").unwrap();
+        EpubWriter::write_to_mem(&mut epub).unwrap();
+        // epub.write("convert.epub").unwrap();
     }
 
     #[test]
@@ -411,7 +414,6 @@ mod tests {
         let mobi = epub_to_mobi(&mut epub).unwrap();
         let mut v = std::io::Cursor::new(Vec::new());
         MobiWriter::new(&mut v)
-            .unwrap()
             .with_append_title(false)
             .write(&mobi)
             .unwrap();

@@ -3,9 +3,8 @@
 //!
 use super::{
     common, core,
-    core::EpubWriter,
     html::{to_opf, to_toc_xml},
-    zip_writer,
+    writer::{self, EpubWriterTrait},
 };
 use crate::prelude::*;
 
@@ -18,13 +17,13 @@ pub fn write_metadata(file: &str, book: &EpubBook) -> IResult<()> {
     let temp_file = dir.join(format!("{}.update.epub", std::process::id()));
     {
         let mut reader = zip::ZipArchive::new(std::fs::File::open(file)?)?;
-
-        let mut writer = zip_writer::ZipFileWriter::new(temp_file.display().to_string().as_str())?;
+        let mut fs= std::fs::OpenOptions::new().create_new(true).truncate(true).write(true).open(temp_file.display().to_string().as_str())?;
+        let mut writer = writer::EpubWriter::new(&mut fs);
         let index = reader.index_for_name(common::OPF).unwrap_or(usize::MAX);
         let index2 = reader.index_for_name(common::TOC).unwrap_or(usize::MAX);
 
         // 首先写入元数据文件
-        writer.write(
+        writer.write_file(
             common::OPF,
             to_opf(
                 book,
@@ -34,7 +33,7 @@ pub fn write_metadata(file: &str, book: &EpubBook) -> IResult<()> {
         )?;
 
         // toc文件也需要重写一份
-        writer.write(common::TOC, to_toc_xml(book.title(), book.nav()).as_bytes())?;
+        writer.write_file(common::TOC, to_toc_xml(book.title(), book.nav()).as_bytes())?;
 
         // 遍历其他文件
 

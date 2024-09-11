@@ -95,8 +95,8 @@ impl BookInfo {
 /// 
 /// # Examples
 /// 
-/// ```
-/// assert_eq!("12345acd", unescapeHTML("<div><p>12345</p><p>acd</p></div>"));
+/// ```ignore
+/// assert_eq!("12345acd", unescape_html("<div><p>12345</p><p>acd</p></div>"));
 /// ```
 /// 
 pub(crate) fn unescape_html(v:&str)->String{

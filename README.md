@@ -61,7 +61,7 @@ let data2 = chap.data();// 第二次不会再读取文件了
 
 ## mobi
 
-目前mobi只支持读取
+### 读取
 
 ```rust
 use iepub::prelude::*;
@@ -71,9 +71,45 @@ let mut mobi = MobiReader::new(std::fs::File::open(path.to_str().unwrap()).unwra
 let book = mobi.load().unwrap();
 ```
 
+### 写入
+
+使用`builder`
+
+```rust
+let v = MobiBuilder::default()
+            .with_title("书名")
+            .with_creator("作者")
+            .with_date("2024-03-14")
+            .with_description("一本好书")
+            .with_identifier("isbn")
+            .with_publisher("行星出版社")
+            .append_title(true)
+            .custome_nav(true)
+            .add_chapter(MobiHtml::new(1).with_title("标题").with_data("<p>锻炼</p>"))
+            // .file("builder.mobi")
+            .mem()
+            .unwrap();
+```
+
+#### 自定义目录
+
+- 如果需要自定义目录，需要调用`custome_nav(false)`,然后调用`add_nav()`添加目录
+- 为了关联目录nav和章节chap，需要调用`MobiNav#set_chap_id()`指明指向的章节；如果是类似卷首目录，指向最接近的章节即可
+
+#### 图片
+
+- mobi格式中图片是不存在文件路径的，如果需要添加图片，首先在章节中使用 `img` 标签的src属性，随便给个文件名，只要不重复就行，然后添加图片的时候也指向同一个文件名，最后写入就会添加图片了
+- 由于mobi设计原因，如果某个图片未被引用，最终仍然会被写入到文件，但是不可索引，不可查看，只能白白占用空间
+- 另外封面需要调用`cover()`设置
+
+
+#### 标题
+
+默认情况下会在章节的html片段前面加一段**标题xml**，如果章节内容里本身就有可阅读的标题，设置`append_title(false)`
+
 ## 转换
 
-目前仅支持 mobi -> epub
+### mobi -> epub
 
 ```rust
 use iepub::prelude::*;
@@ -85,6 +121,21 @@ let mut book = std::fs::File::open(std::path::PathBuf::from("example.mobi"))
 
 let mut epub = mobi_to_epub(&mut book).unwrap();
 epub.write("convert.epub").unwrap();
+```
+
+### epub -> mobi
+
+```rust
+use iepub::prelude::*;
+let mut epub = EpubBook::default();
+
+let mobi = epub_to_mobi(&mut epub).unwrap();
+let mut v = std::io::Cursor::new(Vec::new());
+MobiWriter::new(&mut v)
+    .unwrap()
+    .with_append_title(false)
+    .write(&mobi)
+    .unwrap();
 ```
 
 ## 命令行工具

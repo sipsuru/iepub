@@ -87,7 +87,6 @@ pub(crate) mod epub {
     use iepub::prelude::adapter::epub_to_mobi;
     use iepub::prelude::appender::write_metadata;
     use iepub::prelude::EpubNav;
-    use iepub::prelude::IError;
     use iepub::prelude::MobiWriter;
 
     use crate::{
@@ -560,7 +559,7 @@ pub(crate) mod epub {
             opts: &[ArgOption],
             _args: &[String],
         ) {
-            let mut path = opts
+            let path = opts
                 .iter()
                 .find(|f| f.key == "f")
                 .and_then(|f| f.value.clone())
@@ -581,13 +580,7 @@ pub(crate) mod epub {
                     .map(|(mobi, over)| {
                         if over {
                             msg!("writing file {}", path);
-                            return std::fs::OpenOptions::new()
-                                .write(true)
-                                .create(true)
-                                .truncate(true)
-                                .open(&mut path)
-                                .map_or_else(|e| Err(IError::Io(e)), |fs| MobiWriter::new(fs))
-                                .and_then(|mut w| w.write(&mobi));
+                            return MobiWriter::write_to_file(path.as_str(), &mobi);
                         }
                         Ok(())
                     })
@@ -601,7 +594,7 @@ pub(crate) mod epub {
 
 pub(crate) mod mobi {
 
-    use iepub::prelude::{adapter::mobi_to_epub, MobiNav};
+    use iepub::prelude::{adapter::mobi_to_epub, EpubWriter, MobiNav};
 
     use crate::{
         arg::{self, ArgOption, OptionDef, OptionType},
@@ -940,7 +933,7 @@ pub(crate) mod mobi {
                     .map(|(mut f, over)| {
                         if over {
                             msg!("writing file {}", path);
-                            return f.write(path.as_str());
+                            return EpubWriter::write_to_file(path.as_str(), &mut f);
                         }
                         Ok(())
                     })

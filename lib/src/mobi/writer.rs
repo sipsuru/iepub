@@ -1,11 +1,11 @@
 use std::{
     cmp::min,
     collections::HashMap,
-    io::{BufWriter, Seek, Write},
+    io::{BufWriter, Cursor, Seek, Write},
 };
 
 use crate::{
-    common::IResult,
+    common::{IError, IResult},
     mobi::{
         image::generate_text_img_xml,
         nav::{find_chap_file_pos, generate_reader_nav_xml},
@@ -386,13 +386,14 @@ fn create_text_record(index: usize, text: &[u8]) -> (Vec<u8>, Vec<u8>, usize) {
 ///
 /// # Examples
 /// ```no_run
+/// use iepub::prelude::MobiWriter;
 /// let fs = std::fs::OpenOptions::new()
 /// .write(true)
 /// .truncate(true)
 /// .create(true)
 /// .open("out.mobi")
 /// .unwrap();
-/// let mut book = MobiWriter::new(fs).unwrap().load().unwrap();
+/// MobiWriter::new(fs);
 /// ```
 ///
 pub struct MobiWriter<T: Write + Seek> {
@@ -403,25 +404,51 @@ pub struct MobiWriter<T: Write + Seek> {
     append_title: bool,
 }
 
+impl MobiWriter<std::fs::File> {
+    /// 写入文件
+    pub fn write_to_file(file: &str, book: &MobiBook) -> IResult<()> {
+        std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .open(file)
+            .map_err(|e| IError::Io(e))
+            .map(|f| MobiWriter::new(f))
+            // .map_or_else(|e| Err(IError::Io(e)), |f| MobiWriter::new(f))
+            .and_then(|mut w| w.write(book))
+    }
+}
+
+impl MobiWriter<std::io::Cursor<Vec<u8>>> {
+    /// 写入内存
+    pub fn write_to_mem(book: &MobiBook) -> IResult<Vec<u8>> {
+        let mut v = std::io::Cursor::new(Vec::new());
+        MobiWriter::new(&mut v).write(book)?;
+
+        Ok(v.into_inner())
+    }
+}
+
 impl<T: Write + Seek> MobiWriter<T> {
     ///
     /// # Examples
     /// ```no_run
+    /// use iepub::prelude::MobiWriter;
     /// let fs = std::fs::OpenOptions::new()
     /// .write(true)
     /// .truncate(true)
     /// .create(true)
     /// .open("out.mobi")
     /// .unwrap();
-    /// let mut w = MobiWriter::new(fs).unwrap();
+    /// let mut w = MobiWriter::new(fs);
     /// ```
     ///
-    pub fn new(value: T) -> IResult<Self> {
-        Ok(MobiWriter {
+    pub fn new(value: T) -> Self {
+        MobiWriter {
             inner: BufWriter::new(value),
             compression: 1,
             append_title: true,
-        })
+        }
     }
 
     pub fn set_append_title(&mut self, value: bool) {
@@ -757,7 +784,7 @@ mod tests {
                 .open("demo.mobi")
                 .unwrap();
 
-            let mut w = MobiWriter::new(fs).unwrap();
+            let mut w = MobiWriter::new(fs);
 
             let path = std::env::current_dir().unwrap().join("../dan.mobi");
             let mut mobi =

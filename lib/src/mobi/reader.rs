@@ -1024,6 +1024,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "only for dev"]
     fn test_header() {
 
         let path = std::env::current_dir().unwrap().join("demo.mobi");

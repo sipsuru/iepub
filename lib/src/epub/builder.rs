@@ -1,4 +1,3 @@
-use super::zip_writer;
 use crate::common::time_format;
 use crate::prelude::*;
 
@@ -183,7 +182,8 @@ impl EpubBuilder {
     pub fn file(mut self, file: &str) -> IResult<()> {
         self.gen_last_modify();
         self.gen_nav();
-        self.book.write(file)
+
+        EpubWriter::write_to_file(file, &mut self.book)
     }
 
     ///
@@ -192,12 +192,7 @@ impl EpubBuilder {
     pub fn mem(mut self) -> IResult<Vec<u8>> {
         self.gen_last_modify();
         self.gen_nav();
-
-        let mut writer = zip_writer::ZipMemoeryWriter::new("")?;
-
-        self.book.write_with_writer(&mut writer)?;
-
-        writer.data()
+        EpubWriter::write_to_mem(&mut self.book)
     }
 }
 

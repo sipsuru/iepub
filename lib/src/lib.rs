@@ -8,6 +8,7 @@ mod epub;
 mod mobi;
 mod adapter;
 
+
 pub mod prelude {
     pub use crate::common::IError;
     pub use crate::common::IResult;
@@ -20,7 +21,7 @@ pub mod prelude {
     pub use crate::epub::core::EpubLink;
     pub use crate::epub::core::EpubMetaData;
     pub use crate::epub::core::EpubNav;
-    pub use crate::epub::core::EpubWriter;
+    pub use crate::epub::writer::EpubWriter;
     pub use crate::epub::reader::read_from_file;
     pub use crate::epub::reader::read_from_vec;
 
@@ -33,6 +34,7 @@ pub mod prelude {
     pub use crate::mobi::core::MobiHtml;
     pub use crate::mobi::reader::MobiReader;
     pub use crate::mobi::writer::MobiWriter;
+    pub use crate::mobi::builder::MobiBuilder;
 
     pub mod check {
         pub use crate::epub::reader::is_epub;

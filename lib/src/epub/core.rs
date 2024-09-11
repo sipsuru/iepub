@@ -4,11 +4,10 @@ use std::fmt::{Debug, Display};
 use std::rc::Rc;
 use std::str::FromStr;
 
-use super::html::{get_html_info, to_html, to_nav_html, to_opf, to_toc_xml};
+use super::html::{get_html_info, to_html};
 
 use crate::common::IResult;
 use crate::epub::common::LinkRel;
-use crate::epub::zip_writer;
 use crate::epub_base_field;
 
 use super::common;
@@ -516,25 +515,7 @@ impl EpubBook {
     }
 }
 
-///
-/// epub输出实现，可通过实现该trait从而自定义输出方案。
-///
-/// 具体实现应该是写入到zip文件
-///
-pub trait EpubWriter {
-    /// 新建
-    /// file 输出的epub文件路径
-    ///
-    fn new(file: &str) -> IResult<Self>
-    where
-        Self: Sized;
 
-    ///
-    /// file epub中的文件目录
-    /// data 要写入的数据
-    ///
-    fn write(&mut self, file: &str, data: &[u8]) -> IResult<()>;
-}
 
 pub(crate) trait EpubReaderTrait {
     fn read(&mut self, book: &mut EpubBook) -> IResult<()>;
@@ -549,143 +530,12 @@ pub(crate) trait EpubReaderTrait {
     fn read_string(&mut self, file_name: &str) -> IResult<String>;
 }
 
-static CONTAINER_XML: &str = r#"<?xml version='1.0' encoding='utf-8'?>
-<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
-  <rootfiles>
-    <rootfile media-type="application/oebps-package+xml" full-path="{opf}"/>
-  </rootfiles>
-</container>
-"#;
 
-impl EpubBook {
-    /// 写入基础的文件
-    fn write_base(&self, writer: &mut impl EpubWriter) -> IResult<()> {
-        writer.write(
-            "META-INF/container.xml",
-            CONTAINER_XML.replace("{opf}", common::OPF).as_bytes(),
-        )?;
-        writer.write("mimetype", "application/epub+zip".as_bytes())?;
-
-        writer.write(
-            common::OPF,
-            to_opf(
-                self,
-                format!("{}-{}", info::PROJECT_NAME, info::PKG_VERSION).as_str(),
-            )
-            .as_bytes(),
-        )?;
-
-        Ok(())
-    }
-
-    /// 写入资源文件
-    fn write_assets(&mut self, writer: &mut impl EpubWriter) -> IResult<()> {
-        let m = &mut self.assets;
-        for ele in m {
-            if ele.data().is_none() {
-                continue;
-            }
-            writer.write(
-                format!("{}{}", common::EPUB, ele.file_name()).as_str(),
-                ele.data().unwrap(),
-            )?;
-        }
-        Ok(())
-    }
-
-    /// 写入章节文件
-    fn write_chapters(&mut self, writer: &mut impl EpubWriter) -> IResult<()> {
-        let chap = &mut self.chapters;
-        for ele in chap {
-            if ele.data().is_none() {
-                continue;
-            }
-
-            let html = to_html(ele, true);
-
-            writer.write(
-                format!("{}{}", common::EPUB, ele.file_name()).as_str(),
-                html.as_bytes(),
-            )?;
-        }
-
-        Ok(())
-    }
-    /// 写入目录
-    fn write_nav(&self, writer: &mut impl EpubWriter) -> IResult<()> {
-        // 目录包括两部分，一是自定义的用于书本导航的html，二是epub规范里的toc.ncx文件
-        writer.write(common::NAV, to_nav_html(self.title(), &self.nav).as_bytes())?;
-        writer.write(common::TOC, to_toc_xml(self.title(), &self.nav).as_bytes())?;
-
-        Ok(())
-    }
-
-    ///
-    /// 生成封面
-    ///
-    /// 拷贝资源文件以及生成对应的xhtml文件
-    ///
-    fn write_cover(&mut self, writer: &mut impl EpubWriter) -> IResult<()> {
-        if let Some(cover) = &mut self.cover {
-            writer.write(
-                format!("{}{}", common::EPUB, cover.file_name()).as_str(),
-                cover.data().as_ref().unwrap(),
-            )?;
-
-            let mut html = EpubHtml::default();
-            html.set_data(
-                format!("<img src=\"{}\" alt=\"Cover\"/>", cover.file_name())
-                    .as_bytes()
-                    .to_vec(),
-            );
-            html.title = String::from("Cover");
-            writer.write(common::COVER, to_html(&mut html, false).as_bytes())?;
-        }
-        Ok(())
-    }
-    ///
-    ///
-    /// 写入到指定文件
-    ///
-    /// [file] 文件路径，一般以.epub结尾
-    ///
-    pub fn write(&mut self, file: &str) -> IResult<()> {
-        let mut writer = zip_writer::ZipFileWriter::new(file)?;
-        self.write_with_writer(&mut writer)
-    }
-
-    ///
-    /// 使用自定义输出方案
-    ///
-    /// # Examples
-    ///
-    /// 1. 写入内存
-    ///
-    /// ```rust
-    /// use iepub::prelude::*;
-    /// let mut writer = iepub::zip_writer::ZipMemoeryWriter::new("无用").unwrap();
-    ///
-    /// let mut book = EpubBook::default();
-    /// book.write_with_writer(&mut writer);
-    ///
-    /// ```
-    ///
-    ///
-    pub fn write_with_writer(&mut self, writer: &mut impl EpubWriter) -> IResult<()> {
-        self.write_base(writer)?;
-        self.write_assets(writer)?;
-        self.write_chapters(writer)?;
-        self.write_nav(writer)?;
-        self.write_cover(writer)?;
-
-        Ok(())
-    }
-}
 
 #[cfg(test)]
 mod tests {
 
-    use crate::prelude::*;
+    use crate::{epub::writer::EpubWriterTrait, prelude::*};
 
     #[test]
     fn write_assets() {
@@ -759,6 +609,10 @@ mod tests {
 
         book.set_cover(cover);
 
-        book.write("target/test.epub").expect("write error");
+        // EpubWriter::write_to_file("file", &mut book).unwrap();
+
+        EpubWriter::write_to_mem(&mut book).unwrap();
+
+        // EpubWriter::<std::fs::File>write_to_file("../target/test.epub", &mut book).expect("write error");
     }
 }

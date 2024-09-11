@@ -9,7 +9,6 @@ pub(crate) struct Path {
     home: String,
     /// 分隔符
     sep: String,
-    is_absolute:bool,
 }
 
 impl Path {
@@ -19,22 +18,20 @@ impl Path {
         let sep = "\\";
         #[cfg(not(target_os = "windows"))]
         let sep = "/";
-        let mut paths = Vec::new();
-        let v = path.split(sep);
-        for ele in v {
-            paths.push(ele.to_string());
-        }
+        // let v = path.split(sep);
+        // for ele in v {
+        //     paths.push(ele.to_string());
+        // }
 
         Self {
-            paths,
+            paths: Vec::new(),
             sep: sep.to_string(),
             home: String::new(),
-            is_absolute:path.starts_with("/")
         }
+        .join(path)
     }
 
-    pub fn join(&self, path: &str) ->Self {
-
+    pub fn join(&self, path: &str) -> Self {
         let mut s = self.clone();
 
         let v = path.split(s.sep.as_str());
@@ -42,6 +39,9 @@ impl Path {
             if ele == ".." {
                 s.paths.pop();
             } else if ele == "." {
+            } else if ele == "~" {
+                // 因为在windows上正确处理 homedir 需要引入三方库，所以暂时就不实现了
+                // s.paths.push(self.home.clone());
             } else {
                 s.paths.push(ele.to_string());
             }
@@ -52,12 +52,11 @@ impl Path {
         // if self.is_absolute {
         //     format!("/{}",self.paths.join(&self.sep))
         // }else{
-            self.paths.join(&self.sep)
+        self.paths.join(&self.sep)
         // }
-       
     }
-    pub fn pop(&self)->Self{
-        let mut s= self.clone();
+    pub fn pop(&self) -> Self {
+        let mut s = self.clone();
         s.paths.pop();
         s
     }
@@ -74,7 +73,6 @@ mod tests {
 
         assert_eq!("/ok/1", path.to_str());
 
-
         let mut path = Path::system("/ok");
         path = path.join("../1");
 
@@ -84,6 +82,5 @@ mod tests {
         path = path.join("../1");
 
         assert_eq!("1", path.to_str());
-
     }
 }

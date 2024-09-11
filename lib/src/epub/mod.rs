@@ -4,4 +4,4 @@ pub(crate) mod common;
 pub(crate) mod core;
 mod html;
 pub(crate) mod reader;
-mod zip_writer;
+pub(crate) mod writer;

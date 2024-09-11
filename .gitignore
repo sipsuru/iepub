@@ -28,3 +28,6 @@ Cargo.lock
 .DS_Store
 *.log*
 *.out
+
+*.mobi
+*.epub

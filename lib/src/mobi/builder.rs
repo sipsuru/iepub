@@ -9,7 +9,7 @@ use super::{
 ///
 /// # Examples
 /// ```rust
-/// use iepub::preluce::*;
+/// use iepub::prelude::*;
 ///
 /// fn main() ->IResult<()>{
 ///     let v = MobiBuilder::default()
@@ -28,7 +28,7 @@ use super::{
 /// }
 /// ```
 ///
-pub(crate) struct MobiBuilder {
+pub struct MobiBuilder {
     book: MobiBook,
 
     /// 是否自定义导航
@@ -223,7 +223,7 @@ impl MobiBuilder {
             .create(true)
             .open(file)?;
 
-        MobiWriter::new(fs)?
+        MobiWriter::new(fs)
             .with_append_title(self.append_title)
             .write(&self.book)
     }
@@ -236,7 +236,7 @@ impl MobiBuilder {
         self.gen_nav();
 
         let mut out = std::io::Cursor::new(Vec::new());
-        MobiWriter::new(&mut out)?
+        MobiWriter::new(&mut out)
             .with_append_title(self.append_title)
             .write(&self.book)?;
         Ok(out.into_inner())
