@@ -4,10 +4,10 @@ resolver = "2"
      
 [workspace.package]
 name = "iepub"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 license = "MIT"
-description = "epub电子书读写"
+description = "epub、mobi电子书读写"
 repository = "https://github.com/inkroom/iepub"
 readme = "./README.md"
 keywords = ["epub","mobi","azw","kf6","cli","ebook"]
