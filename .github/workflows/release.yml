@@ -31,7 +31,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-         fetch-depth: 0
+         fetch-tags: true
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
@@ -39,7 +39,7 @@ jobs:
       - name: Get Now Release Version
         id: v
         run: |
-          echo NOW_RELEASE=$(git --no-pager tag | grep ${{ needs.version.outputs.NEXT_VERSION }} | sed 's@v@@')
+          echo NOW_RELEASE=$(git --no-pager tag | grep ${{ needs.version.outputs.NEXT_VERSION }} | sed 's@v@@') >> $GITHUB_OUTPUT
       - name: Docker Build
         uses: docker/build-push-action@v5
         if: needs.version.outputs.NEXT_VERSION != steps.v.outputs.NOW_RELEASE
