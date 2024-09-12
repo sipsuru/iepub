@@ -406,14 +406,14 @@ pub struct MobiWriter<T: Write + Seek> {
 
 impl MobiWriter<std::fs::File> {
     /// 写入文件
-    pub fn write_to_file(file: &str, book: &MobiBook) -> IResult<()> {
+    pub fn write_to_file(file: &str, book: &MobiBook,append_title:bool) -> IResult<()> {
         std::fs::OpenOptions::new()
             .create(true)
             .truncate(true)
             .write(true)
             .open(file)
             .map_err(|e| IError::Io(e))
-            .map(|f| MobiWriter::new(f))
+            .map(|f| MobiWriter::new(f).with_append_title(append_title))
             // .map_or_else(|e| Err(IError::Io(e)), |f| MobiWriter::new(f))
             .and_then(|mut w| w.write(book))
     }
@@ -421,9 +421,9 @@ impl MobiWriter<std::fs::File> {
 
 impl MobiWriter<std::io::Cursor<Vec<u8>>> {
     /// 写入内存
-    pub fn write_to_mem(book: &MobiBook) -> IResult<Vec<u8>> {
+    pub fn write_to_mem(book: &MobiBook,append_title:bool) -> IResult<Vec<u8>> {
         let mut v = std::io::Cursor::new(Vec::new());
-        MobiWriter::new(&mut v).write(book)?;
+        MobiWriter::new(&mut v).with_append_title(append_title).write(book)?;
 
         Ok(v.into_inner())
     }

@@ -42,6 +42,7 @@ pub(crate) trait EpubWriterTrait {
 ///
 pub struct EpubWriter<T: Write + Seek> {
     pub(crate) inner: zip::ZipWriter<T>,
+    pub(crate) append_title: bool,
 }
 static CONTAINER_XML: &str = r#"<?xml version='1.0' encoding='utf-8'?>
 <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
@@ -53,22 +54,27 @@ static CONTAINER_XML: &str = r#"<?xml version='1.0' encoding='utf-8'?>
 
 impl EpubWriter<File> {
     /// 写入文件
-    pub fn write_to_file(file: &str, book: &mut EpubBook) -> IResult<()> {
+    pub fn write_to_file(file: &str, book: &mut EpubBook, append_title: bool) -> IResult<()> {
         std::fs::OpenOptions::new()
             .create(true)
             .truncate(true)
             .write(true)
             .open(file)
-            .map_or_else(|e| Err(IError::Io(e)), |f| Ok(EpubWriter::new(f)))
+            .map_or_else(
+                |e| Err(IError::Io(e)),
+                |f| Ok(EpubWriter::new(f).with_append_title(append_title)),
+            )
             .and_then(|mut w| w.write(book))
     }
 }
 
 impl EpubWriter<std::io::Cursor<Vec<u8>>> {
     /// 写入内存
-    pub fn write_to_mem(book: &mut EpubBook) -> IResult<Vec<u8>> {
+    pub fn write_to_mem(book: &mut EpubBook, append_title: bool) -> IResult<Vec<u8>> {
         let mut v = std::io::Cursor::new(Vec::new());
-        EpubWriter::new(&mut v).write(book)?;
+        EpubWriter::new(&mut v)
+            .with_append_title(append_title)
+            .write(book)?;
 
         Ok(v.into_inner())
     }
@@ -78,7 +84,13 @@ impl<T: Write + Seek> EpubWriter<T> {
     pub fn new(inner: T) -> Self {
         EpubWriter {
             inner: ZipWriter::new(inner),
+            append_title: true,
         }
+    }
+
+    pub fn with_append_title(mut self, append_title: bool) -> Self {
+        self.append_title = append_title;
+        self
     }
 
     pub fn write(&mut self, book: &mut EpubBook) -> IResult<()> {
@@ -134,7 +146,7 @@ impl<T: Write + Seek> EpubWriter<T> {
                 continue;
             }
 
-            let html = to_html(ele, true);
+            let html = to_html(ele, self.append_title);
 
             self.write_file(
                 format!("{}{}", common::EPUB, ele.file_name()).as_str(),

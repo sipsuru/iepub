@@ -16,7 +16,7 @@ mod log;
 /// 支持的全局参数
 fn create_option_def() -> Vec<OptionDef> {
     vec![
-        OptionDef::create("i", "输入文件，epub", OptionType::String, true),
+        OptionDef::create("i", "输入文件路径", OptionType::String, true),
         OptionDef::over(),
         // 日志输出
         OptionDef::create("l", "打开终端日志输出", OptionType::NoParamter, false),
@@ -60,10 +60,9 @@ mod commands {
     }
     pub(crate) mod mobi {
         use crate::command::mobi::*;
-        register_command!(BookInfoGetter, GetImage, GetCover, Unpack,FormatConvert);
+        register_command!(BookInfoGetter, GetImage, GetCover, Unpack, FormatConvert);
     }
 }
-
 
 pub(crate) trait Command {
     ///
@@ -85,11 +84,13 @@ pub(crate) enum Book<'a> {
 }
 
 /// 检查文件类型
-/// 
+///
 /// [return] 0 epub 1 mobi,None 没有指定文件参数
 fn check_input_type(arg: &Arg) -> Option<(usize, String)> {
-
-    let check_method: Vec<fn(&mut File) -> IResult<bool>> = vec![ iepub::prelude::check::is_epub, iepub::prelude::check::is_mobi];
+    let check_method: Vec<fn(&mut File) -> IResult<bool>> = vec![
+        iepub::prelude::check::is_epub,
+        iepub::prelude::check::is_mobi,
+    ];
 
     if let Some(opt) = arg.find_opt("i") {
         let path = opt.value.as_ref().unwrap().as_str();
@@ -100,10 +101,10 @@ fn check_input_type(arg: &Arg) -> Option<(usize, String)> {
         }
         let mut fs = v.unwrap();
 
-        for (index,ele) in check_method.iter().enumerate() {
-             if ele(&mut fs).unwrap_or(false) {
-                return Some((index,path.to_string()));
-             }
+        for (index, ele) in check_method.iter().enumerate() {
+            if ele(&mut fs).unwrap_or(false) {
+                return Some((index, path.to_string()));
+            }
         }
         exec_err!("unsupport file format");
     }
@@ -123,16 +124,16 @@ fn print_useage(arg: &Arg, exe_file_name: &str) -> bool {
             exe_file_name
         );
         for ele in create_option_def() {
-            println!("-{:10} {}", ele.key, ele.desc);
+            println!("{}", ele);
         }
         println!("\nsupported sub command for epub:\n");
         for ele in commands::epub::create_command_option_def() {
-            println!("{:20} {}", ele.command, ele.desc);
+            println!("{}", ele);
         }
 
         println!("\nsupported sub command for mobi:\n");
         for ele in commands::mobi::create_command_option_def() {
-            println!("{:20} {}", ele.command, ele.desc);
+            println!("{}", ele);
         }
         return true;
     }

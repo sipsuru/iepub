@@ -14,6 +14,8 @@
 //! 子命令及其参数可以有多个，将会同时执行
 //!
 
+use std::fmt::Display;
+
 macro_rules! parse_err {
     ($($arg:tt)*) => {{
         #[cfg(not(test))]
@@ -83,6 +85,13 @@ pub(crate) struct OptionDef {
     /// 是否必需
     pub(crate) required: bool,
 }
+
+impl Display for OptionDef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "-{:10} {}", self.key, self.desc)
+    }
+}
+
 impl OptionDef {
     pub(crate) fn create(key: &str, desc: &str, t: OptionType, required: bool) -> Self {
         OptionDef {
@@ -111,6 +120,15 @@ pub(crate) struct CommandOptionDef {
     pub(crate) support_args: i32,
 
     pub(crate) desc: String,
+}
+impl std::fmt::Display for CommandOptionDef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{:10} {}\n", self.command, self.desc)?;
+        for ele in &self.opts {
+            writeln!(f,"   {}",ele)?;
+        }
+        Ok(())
+    }
 }
 
 // fn get_option_def(key: &str, def: &[OptionDef]) -> Option<OptionDef> {}
@@ -150,7 +168,6 @@ pub(crate) fn parse_global_arg(
     let mut current: Option<&OptionDef> = None;
     for (index, ele) in args.iter().enumerate() {
         if let Some(key) = ele.strip_prefix('-') {
-
             if key == "h" {
                 // 直接结束
                 arg.opts.push(ArgOption {
@@ -159,7 +176,7 @@ pub(crate) fn parse_global_arg(
                     ..Default::default()
                 });
 
-                return Ok((arg,index));
+                return Ok((arg, index));
             }
 
             // 一个参数
@@ -194,9 +211,7 @@ pub(crate) fn parse_global_arg(
                 OptionType::Array => {
                     let v = arg.opts.last_mut().unwrap();
 
-                    v.values
-                        .get_or_insert_with(Vec::new)
-                        .push(trim_arg(ele));
+                    v.values.get_or_insert_with(Vec::new).push(trim_arg(ele));
                 }
                 _ => {}
             }
@@ -269,11 +284,14 @@ pub(crate) fn parse_command_arg(
                                         .group
                                         .iter_mut()
                                         .find(|s| s.command == com.command)
-                                        .map(|f| &mut f.opts) { m.push(ArgOption {
-                                        key: key.to_string(),
-                                        value: None,
-                                        values: None,
-                                    }) }
+                                        .map(|f| &mut f.opts)
+                                    {
+                                        m.push(ArgOption {
+                                            key: key.to_string(),
+                                            value: None,
+                                            values: None,
+                                        })
+                                    }
                                     // 参数后面没有值了
                                     current = None;
                                 }
@@ -282,11 +300,14 @@ pub(crate) fn parse_command_arg(
                                         .group
                                         .iter_mut()
                                         .find(|s| s.command == com.command)
-                                        .map(|f| &mut f.opts) { m.push(ArgOption {
-                                        key: key.to_string(),
-                                        value: None,
-                                        values: None,
-                                    }) }
+                                        .map(|f| &mut f.opts)
+                                    {
+                                        m.push(ArgOption {
+                                            key: key.to_string(),
+                                            value: None,
+                                            values: None,
+                                        })
+                                    }
                                 }
                             }
                         }
@@ -353,9 +374,7 @@ pub(crate) fn parse_command_arg(
 mod tests {
     use crate::arg::OptionType;
 
-    use super::{
-        parse_command_arg, parse_global_arg, Arg, CommandOptionDef, OptionDef,
-    };
+    use super::{parse_command_arg, parse_global_arg, Arg, CommandOptionDef, OptionDef};
     fn create_option_def() -> Vec<OptionDef> {
         vec![
             OptionDef::create("i", "输入文件，epub", OptionType::String, true),
@@ -386,31 +405,28 @@ mod tests {
 
     ///
     /// 必填参数未设置
-    /// 
+    ///
     #[test]
-    #[should_panic(expected="global opts -i not set")]
+    #[should_panic(expected = "global opts -i not set")]
     fn test_pase_global_check() {
         let args = ["-l", "nav"].iter().map(|f| f.to_string()).collect();
         let _ = parse_global_arg(args, create_option_def()).unwrap();
     }
     ///
     /// 参数未正确设置
-    /// 
+    ///
     #[test]
-    #[should_panic(expected="ops -i must set value")]
+    #[should_panic(expected = "ops -i must set value")]
     fn test_pase_global_check2() {
         let args = ["-l", "-i"].iter().map(|f| f.to_string()).collect();
-        let (arg,_) = parse_global_arg(args, create_option_def()).unwrap();
-        println!("{:?}",arg);
+        let (arg, _) = parse_global_arg(args, create_option_def()).unwrap();
+        println!("{:?}", arg);
     }
 
     #[test]
     fn test_parse_command() {
         let mut arg = Arg::default();
-        let mut args = ["get-info", "-all"]
-            .iter()
-            .map(|f| f.to_string())
-            .collect();
+        let mut args = ["get-info", "-all"].iter().map(|f| f.to_string()).collect();
         let mut command_option_def = vec![CommandOptionDef {
             command: "get-info".to_string(),
             opts: vec![OptionDef {

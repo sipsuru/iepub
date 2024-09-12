@@ -548,6 +548,7 @@ pub(crate) mod epub {
                 desc: "转换成mobi".to_string(),
                 opts: vec![
                     OptionDef::create("f", "输出文件路径", OptionType::String, true),
+                    OptionDef::create("n", "不添加标题，默认添加", OptionType::NoParamter, false),
                     OptionDef::over(),
                 ],
             }
@@ -564,6 +565,9 @@ pub(crate) mod epub {
                 .find(|f| f.key == "f")
                 .and_then(|f| f.value.clone())
                 .unwrap();
+
+            let append_title = opts.iter().find(|f| f.key == "n").is_none();
+
             if let Book::EPUB(book) = book {
                 let _ = epub_to_mobi(book)
                     .map(|mobi| {
@@ -580,7 +584,7 @@ pub(crate) mod epub {
                     .map(|(mobi, over)| {
                         if over {
                             msg!("writing file {}", path);
-                            return MobiWriter::write_to_file(path.as_str(), &mobi);
+                            return MobiWriter::write_to_file(path.as_str(), &mobi, append_title);
                         }
                         Ok(())
                     })
@@ -901,6 +905,7 @@ pub(crate) mod mobi {
                 desc: "转换成epub".to_string(),
                 opts: vec![
                     OptionDef::create("f", "输出文件路径", OptionType::String, true),
+                    OptionDef::create("n", "不添加标题，默认添加", OptionType::NoParamter, false),
                     OptionDef::over(),
                 ],
             }
@@ -917,6 +922,8 @@ pub(crate) mod mobi {
                 .find(|f| f.key == "f")
                 .and_then(|f| f.value.clone())
                 .unwrap();
+            let append_title = opts.iter().find(|f| f.key == "n").is_none();
+
             if let Book::MOBI(book) = book {
                 let _ = mobi_to_epub(book)
                     .map(|f| {
@@ -933,7 +940,7 @@ pub(crate) mod mobi {
                     .map(|(mut f, over)| {
                         if over {
                             msg!("writing file {}", path);
-                            return EpubWriter::write_to_file(path.as_str(), &mut f);
+                            return EpubWriter::write_to_file(path.as_str(), &mut f, append_title);
                         }
                         Ok(())
                     })

@@ -10,6 +10,7 @@ pub struct EpubBuilder {
     /// 是否自定义导航
     /// 默认为false
     custome_nav: bool,
+    append_title: bool,
 
     nav: Vec<EpubNav>,
 }
@@ -26,7 +27,13 @@ impl EpubBuilder {
             book: EpubBook::default(),
             custome_nav: false,
             nav: Vec::new(),
+            append_title: true,
         }
+    }
+    /// 是否添加标题，默认true
+    pub fn with_append_title(mut self, append_title: bool) -> Self {
+        self.append_title = append_title;
+        self
     }
 
     pub fn with_title(mut self, title: &str) -> Self {
@@ -183,7 +190,16 @@ impl EpubBuilder {
         self.gen_last_modify();
         self.gen_nav();
 
-        EpubWriter::write_to_file(file, &mut self.book)
+        std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .open(file)
+            .map_or_else(
+                |e| Err(IError::Io(e)),
+                |f| Ok(EpubWriter::new(f).with_append_title(self.append_title)),
+            )
+            .and_then(|mut w| w.write(&mut self.book))
     }
 
     ///
@@ -192,7 +208,10 @@ impl EpubBuilder {
     pub fn mem(mut self) -> IResult<Vec<u8>> {
         self.gen_last_modify();
         self.gen_nav();
-        EpubWriter::write_to_mem(&mut self.book)
+        let mut v = std::io::Cursor::new(Vec::new());
+        EpubWriter::new(&mut v).with_append_title(self.append_title).write(&mut self.book)?;
+
+        Ok(v.into_inner())
     }
 }
 
