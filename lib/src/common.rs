@@ -1,8 +1,7 @@
-
 use std::{ops::Deref, string::FromUtf8Error};
 ///
 /// 错误
-/// 
+///
 #[derive(Debug)]
 pub enum IError {
     /// io 错误
@@ -47,12 +46,11 @@ impl From<quick_xml::Error> for IError {
     }
 }
 
-impl From<FromUtf8Error> for IError{
+impl From<FromUtf8Error> for IError {
     fn from(value: FromUtf8Error) -> Self {
         IError::Utf8(value)
     }
 }
-
 
 #[derive(Debug, Default)]
 pub(crate) struct BookInfo {
@@ -92,46 +90,45 @@ impl BookInfo {
 }
 
 /// 去除html的标签，只保留纯文本
-/// 
+///
 /// # Examples
-/// 
+///
 /// ```ignore
 /// assert_eq!("12345acd", unescape_html("<div><p>12345</p><p>acd</p></div>"));
 /// ```
-/// 
-pub(crate) fn unescape_html(v:&str)->String{
+///
+pub(crate) fn unescape_html(v: &str) -> String {
     let mut reader = quick_xml::reader::Reader::from_str(v);
     reader.config_mut().trim_text(true);
- 
+
     let mut buf = Vec::new();
     let mut txt = String::new();
-  
+
     loop {
         match reader.read_event_into(&mut buf) {
-            Ok(quick_xml::events::Event::Text(e) )=> {
+            Ok(quick_xml::events::Event::Text(e)) => {
                 // let _= txt_buf(&e);
-                if let Ok(t) = e.unescape(){
+                if let Ok(t) = e.unescape() {
                     txt.push_str(&t.deref());
                 }
-            },
+            }
             Ok(quick_xml::events::Event::Eof) => {
                 break;
             }
             _ => (),
         }
         buf.clear();
- 
     }
     txt
 }
 
 /// 时间戳转换，从1970年开始
-pub(crate) fn time_display(value:u64)->String{
+pub(crate) fn time_display(value: u64) -> String {
     do_time_display(value, 1970)
 }
 
 /// 时间戳转换，支持从不同年份开始计算
-pub(crate)  fn do_time_display(value: u64,start_year:u64) -> String {
+pub(crate) fn do_time_display(value: u64, start_year: u64) -> String {
     // 先粗略定位到哪一年
     // 以 365 来计算，年通常只会相比正确值更晚，剩下的秒数也就更多，并且有可能出现需要往前一年的情况
 

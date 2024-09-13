@@ -383,11 +383,12 @@ mod tests {
         let html = r#" class="imagecontent lazyload" data-src='https://img3.readpai.com/2/2356/121744/86275.jpg' src="../temp/2356/images/www.bilinovel.com/2356/0/86275.jpg"/><img class="imagecontent lazyload" data-src='https://img3.readpai.com/2/2356/121744/86276.jpg' src="../temp/2356/images/www.bilinovel.com/2356/0/86276.jpg"/><img class="imagecontent lazyload" data-src='https://img3.readpai.com/2/2356/121744/86277.jpg' src="../temp/2356/images/www.bilinovel.com/2356/0/86277.jpg"/><img class="imagecontent lazyload" data-src='https://img3.readpai.com/2/2356/121744/86278.jpg' src="../temp/2356/images/www.bilinovel.com/2356/0/86278.jpg"/><img class="imagecontent lazyload" data-src='https://img3.readpai.com/2/2356/121744/86279.jpg' src="../temp/2356/images/www.bilinovel.com/2356/0/86279.jpg"/>"#;
         let v = get_attr_value(html.as_bytes().to_vec().as_slice(), " src=");
         assert_eq!(90, v.1);
-        assert_eq!("../temp/2356/images/www.bilinovel.com/2356/0/86275.jpg", String::from_utf8(v.0.unwrap()).unwrap());
+        assert_eq!(
+            "../temp/2356/images/www.bilinovel.com/2356/0/86275.jpg",
+            String::from_utf8(v.0.unwrap()).unwrap()
+        );
         assert_eq!(61, v.2);
-
     }
-
 
     #[test]
     fn test_generate_text_img_xml() {

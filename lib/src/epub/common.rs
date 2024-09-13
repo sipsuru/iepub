@@ -105,7 +105,6 @@ impl std::fmt::Display for LinkRel {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     // use super::do_time_format;
@@ -24992,5 +24991,4 @@ mod tests {
         // assert_value("2038-01-18T23:40:57Z", do_time_format2(2147470857));
         // assert_value("2038-01-19T22:04:16Z", do_time_format2(2147551456));
     }
-
 }

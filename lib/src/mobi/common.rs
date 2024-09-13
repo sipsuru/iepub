@@ -1,6 +1,6 @@
 /// pdb中的一个record info
 /// 一组8个字节
-#[derive(Default, Debug,Clone)]
+#[derive(Default, Debug, Clone)]
 pub(crate) struct PDBRecordInfo {
     ///  the offset of record n from the start of the PDB of this record
     pub(crate) offset: u32,
@@ -161,7 +161,6 @@ pub(crate) struct MOBIHeader {
     pub(crate) drm_flags: u32,
     // Bytes to the end of the MOBI header, including the following if the header length >= 228 (244 from start of record).Use 0x0000000000000000.
     // unknown_2: u64,
-
     /// Number of first text record. Normally 1.
     pub(crate) first_content_record_number: u16,
     /// Number of last image record or number of last text record if it contains no images. Includes Image, DATP, HUFF, DRM.
@@ -194,7 +193,6 @@ pub(crate) struct MOBIHeader {
     pub(crate) extra_record_data_flags: u32,
     /// (If not 0xFFFFFFFF)The record number of the first INDX record created from an ncx file.
     pub(crate) indx_record_offset: u32,
-
 }
 
 #[derive(Default, Debug)]

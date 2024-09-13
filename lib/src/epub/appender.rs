@@ -17,7 +17,11 @@ pub fn write_metadata(file: &str, book: &EpubBook) -> IResult<()> {
     let temp_file = dir.join(format!("{}.update.epub", std::process::id()));
     {
         let mut reader = zip::ZipArchive::new(std::fs::File::open(file)?)?;
-        let mut fs= std::fs::OpenOptions::new().create_new(true).truncate(true).write(true).open(temp_file.display().to_string().as_str())?;
+        let mut fs = std::fs::OpenOptions::new()
+            .create_new(true)
+            .truncate(true)
+            .write(true)
+            .open(temp_file.display().to_string().as_str())?;
         let mut writer = writer::EpubWriter::new(&mut fs);
         let index = reader.index_for_name(common::OPF).unwrap_or(usize::MAX);
         let index2 = reader.index_for_name(common::TOC).unwrap_or(usize::MAX);

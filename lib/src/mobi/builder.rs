@@ -308,6 +308,5 @@ mod tests {
 
         assert_eq!(1, book.nav().unwrap().len());
         assert_eq!("标题", book.nav().unwrap().next().unwrap().title());
-
     }
 }

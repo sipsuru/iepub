@@ -1,4 +1,3 @@
-
 pub(crate) static mut IS_LOG: bool = false;
 
 pub(crate) fn set_enable_log(value: bool) {

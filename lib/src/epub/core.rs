@@ -515,8 +515,6 @@ impl EpubBook {
     }
 }
 
-
-
 pub(crate) trait EpubReaderTrait {
     fn read(&mut self, book: &mut EpubBook) -> IResult<()>;
     ///
@@ -529,8 +527,6 @@ pub(crate) trait EpubReaderTrait {
     ///
     fn read_string(&mut self, file_name: &str) -> IResult<String>;
 }
-
-
 
 #[cfg(test)]
 mod tests {

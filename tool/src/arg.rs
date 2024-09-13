@@ -125,7 +125,7 @@ impl std::fmt::Display for CommandOptionDef {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{:10} {}\n", self.command, self.desc)?;
         for ele in &self.opts {
-            writeln!(f,"   {}",ele)?;
+            writeln!(f, "   {}", ele)?;
         }
         Ok(())
     }

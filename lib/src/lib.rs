@@ -1,13 +1,11 @@
 #[allow(unused)]
 #[allow(dead_code)]
-
 extern crate iepub_derive;
-mod path;
+mod adapter;
 mod common;
 mod epub;
 mod mobi;
-mod adapter;
-
+mod path;
 
 pub mod prelude {
     pub use crate::common::IError;
@@ -21,29 +19,28 @@ pub mod prelude {
     pub use crate::epub::core::EpubLink;
     pub use crate::epub::core::EpubMetaData;
     pub use crate::epub::core::EpubNav;
-    pub use crate::epub::writer::EpubWriter;
     pub use crate::epub::reader::read_from_file;
     pub use crate::epub::reader::read_from_vec;
+    pub use crate::epub::writer::EpubWriter;
 
     pub mod appender {
         pub use crate::epub::appender::write_metadata;
     }
 
+    pub use crate::mobi::builder::MobiBuilder;
     pub use crate::mobi::core::MobiBook;
-    pub use crate::mobi::core::MobiNav;
     pub use crate::mobi::core::MobiHtml;
+    pub use crate::mobi::core::MobiNav;
     pub use crate::mobi::reader::MobiReader;
     pub use crate::mobi::writer::MobiWriter;
-    pub use crate::mobi::builder::MobiBuilder;
 
     pub mod check {
         pub use crate::epub::reader::is_epub;
         pub use crate::mobi::reader::is_mobi;
     }
-    
-    pub mod adapter {
-        pub use crate::adapter::core::mobi_to_epub;
-        pub use crate::adapter::core::epub_to_mobi;
-    }
 
+    pub mod adapter {
+        pub use crate::adapter::core::epub_to_mobi;
+        pub use crate::adapter::core::mobi_to_epub;
+    }
 }

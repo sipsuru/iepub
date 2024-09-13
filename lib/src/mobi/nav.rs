@@ -771,8 +771,7 @@ mod tests {
         </p>
         <blockquote height="0pt" width="0pt">
             <a filepos=0000005452></a>
-        </blockquote>"#
-            ;
+        </blockquote>"#;
         let n = read_nav_xml(xml.as_bytes().to_vec()).unwrap();
 
         assert_eq!(1, n.len());
@@ -780,7 +779,6 @@ mod tests {
 
         assert_eq!(1, n[0].children().len());
         assert_eq!("", n[0].children().next().unwrap().title());
-
 
         let xml = r#"<p height="1em" width="0pt" align="center">
         <font size="7">
@@ -792,16 +790,14 @@ mod tests {
     </p>
     <blockquote height="0pt" width="0pt">
         <a filepos=0000005452></a>
-    </blockquote>"#
-        ;
-    let n = read_nav_xml(xml.as_bytes().to_vec()).unwrap();
+    </blockquote>"#;
+        let n = read_nav_xml(xml.as_bytes().to_vec()).unwrap();
 
-    assert_eq!(1, n.len());
-    assert_eq!("", n[0].title());
+        assert_eq!(1, n.len());
+        assert_eq!("", n[0].title());
 
-    assert_eq!(1, n[0].children().len());
-    assert_eq!("", n[0].children().next().unwrap().title());
-
+        assert_eq!(1, n[0].children().len());
+        assert_eq!("", n[0].children().next().unwrap().title());
     }
 
     #[test]

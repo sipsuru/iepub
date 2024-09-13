@@ -15,7 +15,13 @@ use crate::{
 };
 
 use super::{
-    common::{EXTHHeader, EXTHRecord, INDXRecord, MOBIDOCHeader, MOBIHeader, PDBHeader, PDBRecordInfo, NCX}, core::MobiAssets, image::{get_suffix, read_image_recindex_from_html, Cover}, nav::{read_guide_filepos, read_nav_xml}
+    common::{
+        EXTHHeader, EXTHRecord, INDXRecord, MOBIDOCHeader, MOBIHeader, PDBHeader, PDBRecordInfo,
+        NCX,
+    },
+    core::MobiAssets,
+    image::{get_suffix, read_image_recindex_from_html, Cover},
+    nav::{read_guide_filepos, read_nav_xml},
 };
 
 fn vec_u8_to_u64(v: &[u8]) -> u64 {
@@ -26,7 +32,6 @@ fn vec_u8_to_u64(v: &[u8]) -> u64 {
     }
     u64
 }
-
 
 impl PDBHeader {
     fn load<T>(reader: &mut T) -> IResult<Self>
@@ -75,7 +80,6 @@ impl PDBHeader {
     }
 }
 
-
 impl MOBIDOCHeader {
     fn load<T>(reader: &mut T, offset: u64) -> IResult<Self>
     where
@@ -96,7 +100,6 @@ impl MOBIDOCHeader {
         Ok(mo)
     }
 }
-
 
 impl MOBIHeader {
     pub fn load<T>(reader: &mut T) -> IResult<Self>
@@ -143,7 +146,7 @@ impl MOBIHeader {
         reader.seek(SeekFrom::Current(32))?;
         // reader.read_exact(&mut header.unknown_0)?;
 
-        let _  = reader.read_u32()?;
+        let _ = reader.read_u32()?;
         header.drm_offset = reader.read_u32()?;
         header.drm_count = reader.read_u32()?;
         header.drm_size = reader.read_u32()?;
@@ -151,7 +154,7 @@ impl MOBIHeader {
         let _ = reader.read_u64()?;
         header.first_content_record_number = reader.read_u16()?;
         header.last_content_record_number = reader.read_u16()?;
-        let _  = reader.read_u32()?;
+        let _ = reader.read_u32()?;
         header.fcis_record_number = reader.read_u32()?;
         let _ = reader.read_u32()?;
         header.flis_record_number = reader.read_u32()?;
@@ -181,7 +184,6 @@ impl EXTHRecord {
         Ok(v)
     }
 }
-
 
 macro_rules! simple_utf8 {
     ($expr:expr) => {{
@@ -281,7 +283,6 @@ impl EXTHHeader {
     }
 }
 
-
 impl INDXRecord {
     pub fn load<T>(reader: &mut T) -> IResult<Self>
     where
@@ -313,8 +314,6 @@ impl INDXRecord {
         Ok(v)
     }
 }
-
-
 
 /// 计算一个数字 有多少位是1
 fn count_bit(v: u32) -> usize {
@@ -365,7 +364,6 @@ fn get_var_len(byte: &[u8]) -> (usize, usize) {
 //     String::from_utf8(v.to_vec()).unwrap_or(String::new())
 
 // }
-
 
 mod ext {
     use std::{
@@ -471,7 +469,7 @@ impl NCX {
     }
 }
 /// 判断是否是mobi
-pub fn is_mobi<T>( value:&mut T) -> IResult<bool>
+pub fn is_mobi<T>(value: &mut T) -> IResult<bool>
 where
     T: Read + Seek,
 {
@@ -560,8 +558,6 @@ impl<T: Read + Seek> MobiReader<T> {
             self.pdb_header.record_info_list[(index + 1) as usize].offset as u64,
         ))
     }
-
-
 
     /// 从文本中获取目录信息
     /// [sec] 分节信息，filepos
@@ -789,7 +785,7 @@ impl<T: Read + Seek> MobiReader<T> {
                     .unwrap();
 
                 return MobiAssets {
-                    _file_name: format!("{}.{}",f,get_suffix(image.as_slice())),
+                    _file_name: format!("{}.{}", f, get_suffix(image.as_slice())),
                     media_type: String::new(),
                     _data: Some(image),
                     recindex: f.clone(),
@@ -994,10 +990,7 @@ fn uncompression_lz77(data: &[u8]) -> Vec<u8> {
 mod tests {
     use std::io::Seek;
 
-
-
     use crate::mobi::{common::do_time_format, reader::is_mobi};
-
 
     use super::MobiReader;
 
@@ -1005,12 +998,18 @@ mod tests {
     fn test_is_mobi() {
         let mut data: Vec<u8> = Vec::new();
 
-        assert_eq!(false, is_mobi(&mut std::io::Cursor::new(&mut data)).unwrap());
+        assert_eq!(
+            false,
+            is_mobi(&mut std::io::Cursor::new(&mut data)).unwrap()
+        );
 
         let empty = [0u8; 60];
         data.append(&mut empty.to_vec());
         data.append(&mut b"BOOKMOB".to_vec());
-        assert_eq!(false, is_mobi(&mut std::io::Cursor::new(&mut data)).unwrap());
+        assert_eq!(
+            false,
+            is_mobi(&mut std::io::Cursor::new(&mut data)).unwrap()
+        );
 
         data.append(&mut b"I".to_vec());
         assert_eq!(true, is_mobi(&mut std::io::Cursor::new(&mut data)).unwrap());
@@ -1020,13 +1019,15 @@ mod tests {
         }
         assert_eq!(true, is_mobi(&mut std::io::Cursor::new(&mut data)).unwrap());
 
-        assert_eq!(false, is_mobi(&mut std::io::Cursor::new([0u8; 128])).unwrap());
+        assert_eq!(
+            false,
+            is_mobi(&mut std::io::Cursor::new([0u8; 128])).unwrap()
+        );
     }
 
     #[test]
     #[ignore = "only for dev"]
     fn test_header() {
-
         let path = std::env::current_dir().unwrap().join("demo.mobi");
         println!("dir {:?}", path);
         let fs = std::fs::File::open(path.to_str().unwrap()).unwrap();

@@ -209,7 +209,9 @@ impl EpubBuilder {
         self.gen_last_modify();
         self.gen_nav();
         let mut v = std::io::Cursor::new(Vec::new());
-        EpubWriter::new(&mut v).with_append_title(self.append_title).write(&mut self.book)?;
+        EpubWriter::new(&mut v)
+            .with_append_title(self.append_title)
+            .write(&mut self.book)?;
 
         Ok(v.into_inner())
     }
