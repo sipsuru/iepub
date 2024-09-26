@@ -377,7 +377,7 @@ mod tests {
             .unwrap();
 
         let mut epub = mobi_to_epub(&mut book).unwrap();
-        EpubWriter::write_to_mem(&mut epub).unwrap();
+        EpubWriter::write_to_mem(&mut epub, true).unwrap();
         // epub.write("convert.epub").unwrap();
     }
 

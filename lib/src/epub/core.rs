@@ -607,7 +607,7 @@ mod tests {
 
         // EpubWriter::write_to_file("file", &mut book).unwrap();
 
-        EpubWriter::write_to_mem(&mut book).unwrap();
+        EpubWriter::write_to_mem(&mut book, true).unwrap();
 
         // EpubWriter::<std::fs::File>write_to_file("../target/test.epub", &mut book).expect("write error");
     }
