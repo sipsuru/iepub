@@ -56,7 +56,13 @@ let data2 = chap.data();// 第二次不会再读取文件了
 
 ### 注意事项
 
-`iepub`使用`EpubHtml`来存储章节内容，但是`EpubHtml#data`实际只会存储 html>body 节点内的内容，并且**不包括**body节点的属性(attribute)，其他比如样式表将会存放在其他属性中
+- `iepub`使用`EpubHtml`来存储章节内容，但是`EpubHtml#data`实际只会存储 html>body 节点内的内容，并且**不包括**body节点的属性(attribute)，其他比如样式表将会存放在其他属性中
+- 不同的阅读器对于文件名的兼容性不同，这里建议文件最好使用`.xhtml`后缀，例如`EpubHtml::default().with_file_name("1.xhtml")`
+
+
+#### 自定义目录
+
+- 如果需要自定义目录，需要调用`custome_nav(false)`,然后调用`add_nav()`添加目录
 
 
 ## mobi

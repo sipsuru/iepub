@@ -591,16 +591,23 @@ impl<T: Read + Seek> EpubReaderTrait for EpubReader<T> {
                 let opf = read_from_zip!(reader, path.as_str());
 
                 read_opf_xml(opf.as_str(), book)?;
-            }
-        }
-        {
-            // 读取导航
-            if reader.by_name("EPUB/toc.ncx").is_ok() {
-                let content = read_from_zip!(reader, "EPUB/toc.ncx");
 
-                read_nav_xml(content.as_str(), book)?;
+                {
+                    // 读取导航
+                    if let Some(toc) = book.assets().find(|s| s.id() == "ncx") {
+                        let dir: Vec<_> = path.split("/").collect();
+
+                        let t = format!("{}/{}", dir[0], toc.file_name());
+                        if reader.by_name(t.as_str()).is_ok() {
+                            let content = read_from_zip!(reader, t.as_str());
+
+                            read_nav_xml(content.as_str(), book)?;
+                        }
+                    }
+                }
             }
         }
+
         Ok(())
     }
 
@@ -721,8 +728,8 @@ mod tests {
         assert_eq!(b.publisher(), nb.publisher());
         assert_eq!(b.identifier(), nb.identifier());
         assert_eq!(b.last_modify(), nb.last_modify());
-
-        assert_eq!(b.assets().len(), nb.assets().len());
+        // 多出来一个 导航 toc.ncx
+        assert_eq!(b.assets().len() + 1, nb.assets().len());
         // 多出来的一个是导航 nav.xhtml
         assert_eq!(b.chapters().len() + 1, nb.chapters().len());
 
