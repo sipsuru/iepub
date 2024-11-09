@@ -82,11 +82,11 @@ macro_rules! epub_base_field{
     }
 }
 
-pub static EPUB: &str = "EPUB/";
-pub static TOC: &str = "EPUB/toc.ncx";
-pub static NAV: &str = "EPUB/nav.xhtml";
-pub static COVER: &str = "EPUB/cover.xhtml";
-pub static OPF: &str = "EPUB/content.opf";
+pub static EPUB: &str = "OEBPS/";
+pub static TOC: &str = "OEBPS/toc.ncx";
+pub static NAV: &str = "OEBPS/nav.xhtml";
+pub static COVER: &str = "OEBPS/cover.xhtml";
+pub static OPF: &str = "OEBPS/content.opf";
 
 impl std::fmt::Display for LinkRel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

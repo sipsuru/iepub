@@ -286,6 +286,20 @@ pub(crate) fn do_to_opf(book: &EpubBook, generator: &str) -> IResult<String> {
     xml.write_event(Event::Start(manifest.borrow()))?;
 
     // manifest 内 item
+
+    // toc
+    xml.create_element("item")
+        .with_attribute(("href", common::TOC.replace(common::EPUB, "").as_str()))
+        .with_attribute(("id", "ncx"))
+        .with_attribute(("media-type", "application/x-dtbncx+xml"))
+        .write_empty()?;
+    // nav
+    xml.create_element("item")
+        .with_attribute(("href", common::NAV.replace(common::EPUB, "").as_str()))
+        .with_attribute(("id", "toc"))
+        .with_attribute(("media-type", "application/xhtml+xml"))
+        .with_attribute(("properties", "nav"))
+        .write_empty()?;
     if let Some(cover) = book.cover() {
         xml.create_element("item")
             .with_attribute(("href", cover.file_name()))
@@ -315,19 +329,6 @@ pub(crate) fn do_to_opf(book: &EpubBook, generator: &str) -> IResult<String> {
             .with_attribute(("media-type", get_media_type(ele.file_name()).as_str()))
             .write_empty()?;
     }
-    // toc
-    xml.create_element("item")
-        .with_attribute(("href", common::TOC.replace(common::EPUB, "").as_str()))
-        .with_attribute(("id", "toc"))
-        .with_attribute(("media-type", "application/x-dtbncx+xml"))
-        .write_empty()?;
-    // nav
-    xml.create_element("item")
-        .with_attribute(("href", common::NAV.replace(common::EPUB, "").as_str()))
-        .with_attribute(("id", "nav"))
-        .with_attribute(("media-type", "application/xhtml+xml"))
-        .with_attribute(("properties", "nav"))
-        .write_empty()?;
 
     xml.write_event(Event::End(manifest.to_end()))?;
 
@@ -336,7 +337,7 @@ pub(crate) fn do_to_opf(book: &EpubBook, generator: &str) -> IResult<String> {
     xml.write_event(Event::Start(spine.borrow()))?;
     // 把导航放第一个 nav
     xml.create_element("itemref")
-        .with_attribute(("idref", "nav"))
+        .with_attribute(("idref", "toc"))
         .write_empty()?;
     // spine 内的 itemref
     for (index, _ele) in book.chapters().enumerate() {
@@ -592,8 +593,7 @@ ok
         let res = to_opf(&epub, "epub-rs");
         println!("[{}]", res);
 
-        let ass: &str = r###"<?xml version="1.0" encoding="utf-8"?><package xmlns="http://www.idpf.org/2007/opf" unique-identifier="id" version="3.0" prefix="rendition: http://www.idpf.org/vocab/rendition/#"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf"><meta property="dcterms:modified">2024-06-28T03:07:07UTC</meta><dc:date id="date">2024-06-28T08:07:07UTC</dc:date><meta name="generator" content="epub-rs"/><dc:identifier id="id">identifier</dc:identifier><dc:title>中文</dc:title><dc:creator id="creator">作者</dc:creator><dc:description>description</dc:description><meta property="desc">description</meta><meta name="cover" content="cover-img"/><dc:format id="format">format</dc:format><dc:publisher id="publisher">publisher</dc:publisher><dc:subject id="subject">subject</dc:subject><dc:contributor id="contributor">contributor</dc:contributor><meta ok="ov">new</meta></metadata><manifest><item href="" id="cover-img" media-type="" properties="cover-image"/><item href="cover.xhtml" id="cover" media-type="application/xhtml+xml"/><item href="" id="chap_0" media-type="application/xhtml+xml"/><item href="" id="assets_0" media-type=""/><item href="toc.ncx" id="toc" media-type="application/x-dtbncx+xml"/><item href="nav.xhtml" id="nav" media-type="application/xhtml+xml" properties="nav"/></manifest><spine toc="ncx"><itemref idref="nav"/><itemref idref="chap_0"/></spine></package>"###;
-
+        let ass: &str = r###"<?xml version="1.0" encoding="utf-8"?><package xmlns="http://www.idpf.org/2007/opf" unique-identifier="id" version="3.0" prefix="rendition: http://www.idpf.org/vocab/rendition/#"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf"><meta property="dcterms:modified">2024-06-28T03:07:07UTC</meta><dc:date id="date">2024-06-28T08:07:07UTC</dc:date><meta name="generator" content="epub-rs"/><dc:identifier id="id">identifier</dc:identifier><dc:title>中文</dc:title><dc:creator id="creator">作者</dc:creator><dc:description>description</dc:description><meta property="desc">description</meta><meta name="cover" content="cover-img"/><dc:format id="format">format</dc:format><dc:publisher id="publisher">publisher</dc:publisher><dc:subject id="subject">subject</dc:subject><dc:contributor id="contributor">contributor</dc:contributor><meta ok="ov">new</meta></metadata><manifest><item href="toc.ncx" id="ncx" media-type="application/x-dtbncx+xml"/><item href="nav.xhtml" id="toc" media-type="application/xhtml+xml" properties="nav"/><item href="" id="cover-img" media-type="" properties="cover-image"/><item href="cover.xhtml" id="cover" media-type="application/xhtml+xml"/><item href="" id="chap_0" media-type="application/xhtml+xml"/><item href="" id="assets_0" media-type=""/></manifest><spine toc="ncx"><itemref idref="toc"/><itemref idref="chap_0"/></spine></package>"###;
         assert_eq!(ass, res.as_str());
     }
 
