@@ -97,7 +97,7 @@ mod tests {
 
         create_book().file("temp.epub").unwrap();
 
-        let mut book = create_book().book();
+        let mut book = create_book().book().unwrap();
         book.set_title("修改后的名字");
         write_metadata("temp.epub", &book).unwrap();
 

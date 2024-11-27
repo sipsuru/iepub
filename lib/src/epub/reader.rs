@@ -717,7 +717,7 @@ mod tests {
         let book = read_from_vec(data);
         let mut nb = book.unwrap();
         println!("\n{}", nb);
-        let b = create_book().book();
+        let b = create_book().book().unwrap();
         assert_eq!(b.title(), nb.title());
         assert_eq!(b.date(), nb.date());
         assert_eq!(b.creator(), nb.creator());

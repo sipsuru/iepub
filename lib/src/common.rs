@@ -21,6 +21,7 @@ pub enum IError {
     Utf8(std::string::FromUtf8Error),
 
     Xml(quick_xml::Error),
+    Cover(String),
     Unknown,
 }
 

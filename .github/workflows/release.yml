@@ -16,6 +16,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.80.1
+          components: rustfmt, clippy
+      - name: Unit Test
+        run: |
+          cargo test --package iepub --lib --all-features -- --exact --show-output
       - name: Get Version
         id: v
         run: |

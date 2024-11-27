@@ -1,4 +1,4 @@
-use crate::common::{time_format, IResult};
+use crate::common::{time_format, IError, IResult};
 
 use super::{
     core::{MobiAssets, MobiBook, MobiHtml, MobiNav},
@@ -38,6 +38,15 @@ pub struct MobiBuilder {
     /// 默认为true
     append_title: bool,
     nav: Vec<MobiNav>,
+    /// 自动创建封面
+    /// 默认为false
+    auto_gen_cover: bool,
+    /// 字体文件位置
+    /// 用于生成封面图片
+    font: Option<String>,
+    /// 字体文件内容
+    /// 用于生成封面图片
+    font_byte: Option<Vec<u8>>,
 }
 
 impl Default for MobiBuilder {
@@ -53,6 +62,9 @@ impl MobiBuilder {
             custome_nav: false,
             append_title: true,
             nav: Vec::new(),
+            auto_gen_cover: false,
+            font: None,
+            font_byte: None,
         }
     }
 
@@ -109,16 +121,23 @@ impl MobiBuilder {
         self
     }
 
-    // ///
-    // /// 添加 metadata
-    // ///
-    // /// 每一对kv都会生成新的meta元素
-    // ///
-    // pub fn metadata(mut self, key: &str, value: &str) -> Self {
-    //     self.book
-    //         .add_meta(MobiMetaData::default().with_attr(key, value));
-    //     self
-    // }
+    /// 设置自动创建封面
+    pub fn auto_gen_cover(mut self, value: bool) -> Self {
+        self.auto_gen_cover = value;
+        self
+    }
+
+    /// 设置字体文件路径
+    pub fn with_font(mut self, font_file: &str) -> Self {
+        self.font = Some(font_file.to_string());
+        self
+    }
+
+    /// 设置字体文件内容
+    pub fn with_font_bytes(mut self, font: Vec<u8>) -> Self {
+        self.font_byte = Some(font);
+        self
+    }
 
     ///
     /// 添加资源文件
@@ -200,14 +219,35 @@ impl MobiBuilder {
         }
     }
 
+    fn gen_cover(&mut self) -> IResult<()> {
+        if self.auto_gen_cover && self.book.cover().is_none() {
+            let font_bytes = match self.font_byte.clone() {
+                Some(v) => v,
+                None => self
+                    .font
+                    .as_ref()
+                    .and_then(|f| std::fs::read(f.as_str()).ok())
+                    .unwrap_or_else(|| Vec::new()),
+            };
+            if font_bytes.is_empty() {
+                return Err(IError::Cover("no font set".to_string()));
+            }
+            let c = crate::cover::gen_cover(self.book.title(), &font_bytes)?;
+            self.book.set_cover(MobiAssets::new(c));
+        } else if self.book.cover().is_none() {
+            return Err(IError::Cover("mobi must have the cover".to_string()));
+        }
+        Ok(())
+    }
     ///
     /// 返回实例，将会消耗构造器所有权
     ///
     ///
-    pub fn book(mut self) -> MobiBook {
+    pub fn book(mut self) -> IResult<MobiBook> {
         self.gen_last_modify();
         self.gen_nav();
-        self.book
+        self.gen_cover()?;
+        Ok(self.book)
     }
 
     ///
@@ -216,6 +256,7 @@ impl MobiBuilder {
     pub fn file(mut self, file: &str) -> IResult<()> {
         self.gen_last_modify();
         self.gen_nav();
+        self.gen_cover()?;
 
         let fs = std::fs::OpenOptions::new()
             .write(true)
@@ -234,6 +275,7 @@ impl MobiBuilder {
     pub fn mem(mut self) -> IResult<Vec<u8>> {
         self.gen_last_modify();
         self.gen_nav();
+        self.gen_cover()?;
 
         let mut out = std::io::Cursor::new(Vec::new());
         MobiWriter::new(&mut out)

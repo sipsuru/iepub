@@ -64,6 +64,12 @@ let data2 = chap.data();// 第二次不会再读取文件了
 
 - 如果需要自定义目录，需要调用`custome_nav(false)`,然后调用`add_nav()`添加目录
 
+#### 自动生成封面
+
+自动生成黑底白字，写着书籍名的封面图
+
+需要启用feature `cover`，然后调用`auto_gen_cover(true)`，同时需要调用`with_font_bytes(font)`设置字体文件位置。
+
 
 ## mobi
 
@@ -112,6 +118,12 @@ let v = MobiBuilder::default()
 #### 标题
 
 默认情况下会在章节的html片段前面加一段**标题xml**，如果章节内容里本身就有可阅读的标题，设置`append_title(false)`
+
+#### 自动生成封面
+
+自动生成黑底白字，写着书籍名的封面图
+
+需要启用feature `cover`，然后调用`auto_gen_cover(true)`，同时需要调用`with_font_bytes(font)`设置字体文件位置。
 
 ## 转换
 
