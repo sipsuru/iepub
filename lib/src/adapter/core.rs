@@ -410,7 +410,8 @@ mod tests {
             )
             .add_assets("1.jpg", img.clone())
             .cover("cover.jpg", img2.clone())
-            .book().unwrap();
+            .book()
+            .unwrap();
 
         let mobi = epub_to_mobi(&mut epub).unwrap();
         let mut v = std::io::Cursor::new(Vec::new());
