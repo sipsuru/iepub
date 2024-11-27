@@ -11,8 +11,16 @@ pub struct EpubBuilder {
     /// 默认为false
     custome_nav: bool,
     append_title: bool,
-
     nav: Vec<EpubNav>,
+    /// 自动创建封面
+    /// 默认为false
+    auto_gen_cover: bool,
+    /// 字体文件位置
+    /// 用于生成封面图片
+    font: Option<String>,
+    /// 字体文件内容
+    /// 用于生成封面图片
+    font_byte: Option<Vec<u8>>,
 }
 
 impl Default for EpubBuilder {
@@ -28,10 +36,13 @@ impl EpubBuilder {
             custome_nav: false,
             nav: Vec::new(),
             append_title: true,
+            auto_gen_cover: false,
+            font: None,
+            font_byte: None,
         }
     }
     /// 是否添加标题，默认true
-    pub fn with_append_title(mut self, append_title: bool) -> Self {
+    pub fn append_title(mut self, append_title: bool) -> Self {
         self.append_title = append_title;
         self
     }
@@ -81,6 +92,23 @@ impl EpubBuilder {
 
     pub fn custome_nav(mut self, value: bool) -> Self {
         self.custome_nav = value;
+        self
+    }
+    /// 设置自动创建封面
+    pub fn auto_gen_cover(mut self, value: bool) -> Self {
+        self.auto_gen_cover = value;
+        self
+    }
+
+    /// 设置字体文件路径
+    pub fn with_font(mut self, font_file: &str) -> Self {
+        self.font = Some(font_file.to_string());
+        self
+    }
+
+    /// 设置字体文件内容
+    pub fn with_font_bytes(mut self, font: Vec<u8>) -> Self {
+        self.font_byte = Some(font);
         self
     }
 
@@ -173,14 +201,39 @@ impl EpubBuilder {
         }
     }
 
+    fn gen_cover(&mut self) -> IResult<()> {
+        if self.auto_gen_cover && self.book.cover().is_none() {
+            let font_bytes = match self.font_byte.clone() {
+                Some(v) => v,
+                None => self
+                    .font
+                    .as_ref()
+                    .and_then(|f| std::fs::read(f.as_str()).ok())
+                    .unwrap_or_else(|| Vec::new()),
+            };
+            if font_bytes.is_empty() {
+                return Err(IError::Cover("no font set".to_string()));
+            }
+            let c = crate::cover::gen_cover(self.book.title(), &font_bytes)?;
+
+            self.book.set_cover(
+                EpubAssets::default()
+                    .with_file_name("cover.jpeg")
+                    .with_data(c),
+            );
+        }
+        Ok(())
+    }
+
     ///
     /// 返回epub实例，将会消耗构造器所有权
     ///
     ///
-    pub fn book(mut self) -> EpubBook {
+    pub fn book(mut self) -> IResult<EpubBook> {
         self.gen_last_modify();
         self.gen_nav();
-        self.book
+        self.gen_cover()?;
+        Ok(self.book)
     }
 
     ///
@@ -189,6 +242,7 @@ impl EpubBuilder {
     pub fn file(mut self, file: &str) -> IResult<()> {
         self.gen_last_modify();
         self.gen_nav();
+        self.gen_cover()?;
 
         std::fs::OpenOptions::new()
             .create(true)
@@ -208,6 +262,7 @@ impl EpubBuilder {
     pub fn mem(mut self) -> IResult<Vec<u8>> {
         self.gen_last_modify();
         self.gen_nav();
+        self.gen_cover()?;
         let mut v = std::io::Cursor::new(Vec::new());
         EpubWriter::new(&mut v)
             .with_append_title(self.append_title)
@@ -225,7 +280,26 @@ mod tests {
 
     #[test]
     fn test() {
+        let f = if std::path::Path::new("target").exists() {
+            "target/SourceHanSansSC-Bold.otf"
+        } else {
+            "../target/SourceHanSansSC-Bold.otf"
+        };
+        let font = std::fs::read(f).or_else( |_|{
+             tinyget::get("https://github.com/adobe-fonts/source-han-serif/raw/refs/heads/release/SubsetOTF/CN/SourceHanSerifCN-Bold.otf").send().map(|v|{
+                let s =v.as_bytes().to_vec();
+                println!("{} {:?}",s.len(),v.headers);
+                if &s.len().to_string() != v.headers.get("content-length").unwrap_or(&String::new()) && v.status_code !=200 {
+                    panic!("字体文件下载失败");
+                }
+                let _ = std::fs::write(f, s.clone());
+                s
+            })
+        }).unwrap();
+
         EpubBuilder::default()
+            .auto_gen_cover(true)
+            .with_font_bytes(font)
             .with_title("书名")
             .with_creator("作者")
             .with_date("2024-03-14")
@@ -240,7 +314,11 @@ mod tests {
             .add_assets("1.css", "p{color:red}".to_string().as_bytes().to_vec())
             .metadata("s", "d")
             .metadata("h", "m")
-            .file("target/build.epub")
+            .file(if std::path::Path::new("target").exists() {
+                "target/build.epub"
+            } else {
+                "../target/build.epub"
+            })
             .unwrap();
     }
 }

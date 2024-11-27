@@ -349,6 +349,7 @@ mod tests {
     use crate::mobi::reader::MobiReader;
 
     #[test]
+    #[ignore = "dan.mobi"]
     fn test_load() {
         let path = std::env::current_dir().unwrap().join("../dan.mobi");
         let mut mobi =

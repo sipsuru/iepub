@@ -127,7 +127,7 @@ pub fn mobi_to_epub(mobi: &mut MobiBook) -> IResult<EpubBook> {
         builder = builder.with_subject(v);
     }
 
-    Ok(builder.book())
+    builder.book()
 }
 
 /// 转换 mobi 的 html 文本，主要是处理其中的img标签，添加src属性
@@ -346,7 +346,7 @@ pub fn epub_to_mobi(epub: &mut EpubBook) -> IResult<MobiBook> {
         builder = builder.cover(c.data().ok_or(IError::Unknown)?.to_vec());
     }
 
-    Ok(builder.book())
+    builder.book()
 }
 
 // pub fn epub_to_mobi(epub:&mut EpubBook) ->IResult<>
@@ -364,6 +364,7 @@ mod tests {
     use super::{convert_mobi_html_data, epub_to_mobi, mobi_to_epub};
 
     #[test]
+    #[ignore = "dan.mobi"]
     fn test_convert() {
         let mut book = std::env::current_dir()
             .ok()
@@ -409,7 +410,7 @@ mod tests {
             )
             .add_assets("1.jpg", img.clone())
             .cover("cover.jpg", img2.clone())
-            .book();
+            .book().unwrap();
 
         let mobi = epub_to_mobi(&mut epub).unwrap();
         let mut v = std::io::Cursor::new(Vec::new());

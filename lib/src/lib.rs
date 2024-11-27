@@ -6,6 +6,7 @@ mod common;
 mod epub;
 mod mobi;
 mod path;
+mod cover;
 
 pub mod prelude {
     pub use crate::common::IError;

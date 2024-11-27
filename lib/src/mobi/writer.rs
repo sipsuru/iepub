@@ -777,6 +777,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "dan.mobi"]
     fn test_write() {
         {
             let fs = std::fs::OpenOptions::new()
