@@ -3,10 +3,10 @@
 extern crate iepub_derive;
 mod adapter;
 mod common;
+mod cover;
 mod epub;
 mod mobi;
 mod path;
-mod cover;
 
 pub mod prelude {
     pub use crate::common::IError;
