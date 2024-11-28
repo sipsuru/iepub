@@ -52,7 +52,7 @@ fn get_mobi_assets_file_name(a: &MobiAssets) -> String {
 /// .unwrap();
 ///
 /// let mut epub = mobi_to_epub(&mut book).unwrap();
-/// EpubWriter::write_to_mem(&mut epub).unwrap();
+/// EpubWriter::write_to_mem(&mut epub, true).unwrap();
 /// ```
 pub fn mobi_to_epub(mobi: &mut MobiBook) -> IResult<EpubBook> {
     let mut builder = EpubBuilder::new();
