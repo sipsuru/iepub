@@ -1,0 +1,6 @@
+ARG RUST_VERSION
+FROM inkbox/rust:${RUST_VERSION}
+RUN cd / && apt update -y && apt install -y git && git clone https://github.com/inkroom/iepub
+WORKDIR /iepub
+RUN export RUST_V=$(rustc --version | awk '{print $2}') && rustup toolchain install nightly-2024-06-21 && rustup default nightly-2024-06-21 && cargo -Zminimal-versions generate-lockfile && rustup default $RUST_V
+RUN cargo test --workspace --all-features -- --exact --show-output

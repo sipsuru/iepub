@@ -20,6 +20,7 @@ use super::{
 ///         .with_identifier("isbn")
 ///         .with_publisher("行星出版社")
 ///         .append_title(true)
+///         .cover(Vec::new())
 ///         .add_chapter(MobiHtml::new(1).with_title("标题").with_data("<p>锻炼</p>"))
 ///         // .file("builder.mobi")
 ///         .mem()
@@ -304,6 +305,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "temp"]
     fn test() {
         let resp = tinyget::get("https://www.rust-lang.org/static/images/user-logos/yelp.png")
             .send()
