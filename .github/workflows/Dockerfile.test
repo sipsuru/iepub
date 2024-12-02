@@ -1,6 +1,11 @@
 ARG RUST_VERSION
 FROM inkbox/rust:${RUST_VERSION}
-RUN cd / && apt update -y && apt install -y git && git clone https://github.com/inkroom/iepub
+RUN rm -rf ${CARGO_HOME}/config.toml && cd / && apt update -y && apt install -y git libssl-dev pkg-config && git clone https://github.com/inkroom/iepub
 WORKDIR /iepub
-RUN export RUST_V=$(rustc --version | awk '{print $2}') && rustup toolchain install nightly-2024-06-21 && rustup default nightly-2024-06-21 && cargo -Zminimal-versions generate-lockfile && rustup default $RUST_V
+SHELL ["/bin/bash","-c"]
+RUN export RUST_V=$(rustc --version | awk '{print $2}') ;\
+ if [[ "$RUST_V" < "1.79.0" ]]; then \
+  rustup toolchain install nightly-2024-06-21 && rustup default nightly-2024-06-21 && cargo -Zminimal-versions generate-lockfile && rustup default $RUST_V; \
+ fi
 RUN cargo test --workspace --all-features -- --exact --show-output
+RUN cargo test --workspace -- --exact --show-output
