@@ -8,12 +8,6 @@ mod text_width {
     use ab_glyph::PxScale;
     use image::{DynamicImage, GenericImageView, Rgba};
 
-    #[derive(Debug)]
-    pub struct Point {
-        pub x: u32,
-        pub y: u32,
-    }
-
     pub struct ImageCrop {
         pub original: DynamicImage,
     }
@@ -37,92 +31,35 @@ mod text_width {
             ImageCrop { original: img }
         }
 
-        pub fn calculate_corners(&self) -> (Point, Point) {
-            (self.top_left_corner(), self.bottom_right_corner())
-        }
-
-        fn is_white(pixel: Rgba<u8>) -> bool {
-            pixel[0] == 255 && pixel[1] == 255 && pixel[2] == 255
-        }
-
-        fn top_left_corner(&self) -> Point {
-            Point {
-                x: self.top_left_corner_x(),
-                y: self.top_left_corner_y(),
+        pub fn text_width(&self) -> (u32, u32) {
+            let (width, height) = self.original.dimensions();
+            let mut left_x = 0;
+            let mut right_x = 0;
+            #[inline]
+            fn is_not_black(pixel: Rgba<u8>) -> bool {
+                pixel[0] != 0 && pixel[1] != 0 && pixel[2] != 0
             }
-        }
-
-        fn top_left_corner_x(&self) -> u32 {
-            for x in 0..(self.original.dimensions().0) {
-                for y in 0..(self.original.dimensions().1) {
+            for x in 0..width {
+                for y in 0..height {
                     let pixel = self.original.get_pixel(x, y);
-                    if Self::is_white(pixel) {
-                        return x;
+                    if is_not_black(pixel) {
+                        if left_x == 0 {
+                            left_x = x;
+                        }
+                        if x >= right_x {
+                            right_x = x;
+                        }
                     }
                 }
             }
-            panic!("找不到文字，可能是字体中不包含该文字");
-        }
-
-        fn top_left_corner_y(&self) -> u32 {
-            for y in 0..(self.original.dimensions().1) {
-                for x in 0..(self.original.dimensions().0) {
-                    let pixel = self.original.get_pixel(x, y);
-                    if Self::is_white(pixel) {
-                        return y;
-                    }
-                }
+            if right_x == left_x {
+                panic!("找不到文字，可能是字体中不包含该文字");
             }
-            panic!("找不到文字，可能是字体中不包含该文字");
-        }
-
-        fn bottom_right_corner(&self) -> Point {
-            Point {
-                x: self.bottom_right_corner_x(),
-                y: self.bottom_right_corner_y(),
-            }
-        }
-
-        fn bottom_right_corner_x(&self) -> u32 {
-            let mut x = self.original.dimensions().0 as i32 - 1;
-            // Using while loop as currently there is no reliable built-in
-            // way to use custom negative steps when specifying range
-            while x >= 0 {
-                let mut y = self.original.dimensions().1 as i32 - 1;
-                while y >= 0 {
-                    let pixel = self.original.get_pixel(x as u32, y as u32);
-                    if Self::is_white(pixel) {
-                        return x as u32 + 1;
-                    }
-                    y -= 1;
-                }
-                x -= 1;
-            }
-            panic!("找不到文字，可能是字体中不包含该文字");
-        }
-
-        fn bottom_right_corner_y(&self) -> u32 {
-            let mut y = self.original.dimensions().1 as i32 - 1;
-            // Using while loop as currently there is no reliable built-in
-            // way to use custom negative steps when specifying range
-            while y >= 0 {
-                let mut x = self.original.dimensions().0 as i32 - 1;
-                while x >= 0 {
-                    let pixel = self.original.get_pixel(x as u32, y as u32);
-                    if Self::is_white(pixel) {
-                        return y as u32 + 1;
-                    }
-                    x -= 1;
-                }
-                y -= 1;
-            }
-            panic!("找不到文字，可能是字体中不包含该文字");
+            (right_x - left_x, left_x)
         }
     }
     #[cfg(test)]
     mod tests {
-        use image::Rgba;
-        use imageproc::rect::Rect;
 
         use super::ImageCrop;
 
@@ -146,11 +83,17 @@ mod text_width {
             }).unwrap();
             let font = ab_glyph::FontRef::try_from_slice(&font).unwrap();
 
-            let mut img = ImageCrop::new("书", 70, 120, &font);
+            let img = ImageCrop::new("的", 70, 120, &font);
+            let mut f = std::fs::File::create(if std::path::Path::new("target").exists() {
+                "target/single.jpeg"
+            } else {
+                "../target/single.jpeg"
+            }).unwrap();
+            img.original
+                .write_to(&mut f, image::ImageFormat::Jpeg)
+                .unwrap();
 
-            let corners = img.calculate_corners();
-            let real_width = corners.1.x - corners.0.x;
-            println!("real_width {real_width}");
+            println!("real_width {}", img.text_width().0);
         }
     }
 }
@@ -180,9 +123,9 @@ pub(crate) fn gen_cover(book_name: &str, font: &[u8]) -> IResult<Vec<u8>> {
         col_count = 2;
         row_count = (text.chars().count() / 2) as u32;
     } else {
-        // 其他情况，每行两个字
-        col_count = 2;
-        row_count = ((text.chars().count() / 2) as f32).ceil() as u32;
+        // 其他情况，每行三个字
+        col_count = 3.min(text.chars().count()) as u32;
+        row_count = (text.chars().count() as f32 / col_count as f32).ceil() as u32;
         row_count = row_count.max(1);
     }
 
@@ -203,13 +146,12 @@ pub(crate) fn gen_cover(book_name: &str, font: &[u8]) -> IResult<Vec<u8>> {
             };
             // 获取文字实际的宽度
             let crop = ImageCrop::new(t.as_str(), use_width, 120, &font);
-            let corners = crop.calculate_corners();
-            let real_width = corners.1.x - corners.0.x;
-
+            let (real_width, begin_x) = crop.text_width();
             imageproc::drawing::draw_text_mut(
                 &mut img,
                 image::Rgba([255u8, 255u8, 255u8, 1u8]),
-                (margin + col * use_width + (use_width - real_width) / 2) as i32,
+                // 如果加上margin，绘制结果x会在计算结果上再偏移margin，从而显得不居中
+                (margin + col * use_width + (use_width - real_width) / 2 - begin_x ) as i32,
                 (margin + row * use_height) as i32,
                 sc,
                 &font,
@@ -226,7 +168,7 @@ pub(crate) fn gen_cover(book_name: &str, font: &[u8]) -> IResult<Vec<u8>> {
 }
 
 #[cfg(not(feature = "cover"))]
-pub(crate) fn gen_cover(book_name: &str, font: &[u8]) -> IResule<Vec<u8>> {
+pub(crate) fn gen_cover(book_name: &str, font: &[u8]) -> IResult<Vec<u8>> {
     panic!("自动封面需要启用 plotters features")
 }
 
@@ -262,12 +204,33 @@ mod tests {
         )
         .unwrap();
 
-        let m = super::gen_cover("十一个字的书名十一个字", &font).unwrap();
+        let m = super::gen_cover("每一个字都不同用来测试", &font).unwrap();
         std::fs::write(
             if std::path::Path::new("target").exists() {
                 "target/cover2.jpeg"
             } else {
                 "../target/cover2.jpeg"
+            },
+            m,
+        )
+        .unwrap();
+        let m = super::gen_cover("的", &font).unwrap();
+        std::fs::write(
+            if std::path::Path::new("target").exists() {
+                "target/cover3.jpeg"
+            } else {
+                "../target/cover3.jpeg"
+            },
+            m,
+        )
+        .unwrap();
+
+        let m = super::gen_cover("大字", &font).unwrap();
+        std::fs::write(
+            if std::path::Path::new("target").exists() {
+                "target/cover4.jpeg"
+            } else {
+                "../target/cover4.jpeg"
             },
             m,
         )

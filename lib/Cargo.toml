@@ -25,5 +25,4 @@ shadow-rs = "0.29.0"
 tinyget = { version = "1.0.2", features = ["https"] }
 
 [features]
-default=["cover"]
 cover = ["dep:ab_glyph","dep:image","dep:imageproc"]
