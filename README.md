@@ -1,7 +1,6 @@
 # iepub
 
-[EPUB](https://www.w3.org/TR/2023/REC-epub-33-20230525/)格式读写库，
-[MOBI](https://wiki.mobileread.com/wiki/MOBI)格式读库，
+[EPUB](https://www.w3.org/TR/2023/REC-epub-33-20230525/)、[MOBI](https://wiki.mobileread.com/wiki/MOBI)读写库，
 
 ## EPUB
 
@@ -68,7 +67,7 @@ let data2 = chap.data();// 第二次不会再读取文件了
 
 自动生成黑底白字，写着书籍名的封面图
 
-需要启用feature `cover`，然后调用`auto_gen_cover(true)`，同时需要调用`with_font_bytes(font)`设置字体文件位置。
+需要启用feature `cover`，然后调用`auto_gen_cover(true)`，同时需要调用`with_font(font)`设置字体文件位置。
 
 
 ## mobi
@@ -123,7 +122,7 @@ let v = MobiBuilder::default()
 
 自动生成黑底白字，写着书籍名的封面图
 
-需要启用feature `cover`，然后调用`auto_gen_cover(true)`，同时需要调用`with_font_bytes(font)`设置字体文件位置。
+需要启用feature `cover`，然后调用`auto_gen_cover(true)`，同时需要调用`with_font(font)`设置字体文件位置。
 
 ## 转换
 

@@ -4,13 +4,13 @@ resolver = "2"
      
 [workspace.package]
 name = "iepub"
-version = "0.6.0"
+version = "0.6.1"
 edition = "2021"
 license = "MIT"
 description = "epub、mobi电子书读写"
 repository = "https://github.com/inkroom/iepub"
 readme = "./README.md"
-keywords = ["epub","mobi","azw","kf6","ebook"]
+keywords = ["epub","mobi","azw","ebook"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [patch.crates-io]
 iepub = { path = "lib" }
