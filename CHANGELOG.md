@@ -1,2 +1,1 @@
-- 优化封面绘制效果
-- cover feature不再默认启用
+- 移除shadow依赖
