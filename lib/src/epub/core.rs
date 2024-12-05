@@ -13,7 +13,7 @@ use crate::epub_base_field;
 use super::common;
 
 pub(crate) mod info {
-    include!(concat!(env!("OUT_DIR"), "/shadow.rs"));
+    include!(concat!(env!("OUT_DIR"), "/version.rs"));
 }
 
 /**
