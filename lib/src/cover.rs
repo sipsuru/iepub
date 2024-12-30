@@ -88,7 +88,8 @@ mod text_width {
                 "target/single.jpeg"
             } else {
                 "../target/single.jpeg"
-            }).unwrap();
+            })
+            .unwrap();
             img.original
                 .write_to(&mut f, image::ImageFormat::Jpeg)
                 .unwrap();
@@ -113,8 +114,8 @@ pub(crate) fn gen_cover(book_name: &str, font: &[u8]) -> IResult<Vec<u8>> {
 
     let mut img = DynamicImage::new_rgb8(width, height);
 
-    let mut row_count: u32 = 0;
-    let mut col_count = 0;
+    let row_count;
+    let col_count;
 
     if text.chars().count() % 3 == 0 {
         col_count = 3;
@@ -125,8 +126,7 @@ pub(crate) fn gen_cover(book_name: &str, font: &[u8]) -> IResult<Vec<u8>> {
     } else {
         // 其他情况，每行三个字
         col_count = 3.min(text.chars().count()) as u32;
-        row_count = (text.chars().count() as f32 / col_count as f32).ceil() as u32;
-        row_count = row_count.max(1);
+        row_count = 1.max((text.chars().count() as f32 / col_count as f32).ceil() as u32);
     }
 
     // 计算一个字可以使用的高度和宽度
@@ -147,11 +147,14 @@ pub(crate) fn gen_cover(book_name: &str, font: &[u8]) -> IResult<Vec<u8>> {
             // 获取文字实际的宽度
             let crop = ImageCrop::new(t.as_str(), use_width, 120, &font);
             let (real_width, begin_x) = crop.text_width();
+            let mut x = ((use_width - real_width) / 2) as i32;
+            x -= begin_x as i32;
+            x += margin as i32;
+            x += (col * use_width) as i32;
             imageproc::drawing::draw_text_mut(
                 &mut img,
                 image::Rgba([255u8, 255u8, 255u8, 1u8]),
-                // 如果加上margin，绘制结果x会在计算结果上再偏移margin，从而显得不居中
-                (margin + col * use_width + (use_width - real_width) / 2 - begin_x ) as i32,
+                x,
                 (margin + row * use_height) as i32,
                 sc,
                 &font,
@@ -169,11 +172,33 @@ pub(crate) fn gen_cover(book_name: &str, font: &[u8]) -> IResult<Vec<u8>> {
 
 #[cfg(not(feature = "cover"))]
 pub(crate) fn gen_cover(book_name: &str, font: &[u8]) -> IResult<Vec<u8>> {
-    panic!("自动封面需要启用 plotters features")
+    panic!("自动封面需要启用 cover features")
 }
 
 #[cfg(all(test, feature = "cover"))]
 mod tests {
+
+    #[test]
+    fn test_wqy() {
+        let z = "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc";
+
+        if !std::fs::metadata(z).map_or(false, |_| true) {
+            return;
+        }
+        println!("test sub overflow");
+        let font = std::fs::read(z).unwrap();
+        let m = super::gen_cover("测试括号（2024测试全集）", &font).unwrap();
+        std::fs::write(
+            if std::path::Path::new("target").exists() {
+                "target/cover5.jpeg"
+            } else {
+                "../target/cover5.jpeg"
+            },
+            m,
+        )
+        .unwrap();
+    }
+
     #[test]
     fn test_gen_cover() {
         let f = if std::path::Path::new("target").exists() {

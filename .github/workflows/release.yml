@@ -34,7 +34,7 @@ jobs:
       - name: Ready
         run: |
           pwd
-          rm -rf ${CARGO_HOME}/config.toml && cd / && apt update -y && apt install -y libssl-dev pkg-config
+          rm -rf ${CARGO_HOME}/config.toml && cd / && apt update -y && apt install -y libssl-dev pkg-config fonts-wqy-zenhei
       - uses: dtolnay/rust-toolchain@stable
         with:
          toolchain: ${{ matrix.version }}
