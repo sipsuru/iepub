@@ -14,7 +14,7 @@
 //! 子命令及其参数可以有多个，将会同时执行
 //!
 
-use std::fmt::Display;
+use std::{fmt::Display, isize};
 
 macro_rules! parse_err {
     ($($arg:tt)*) => {{
@@ -72,6 +72,8 @@ pub(crate) enum OptionType {
     NoParamter,
     /// 文件路径
     String,
+    /// 数字
+    Number,
 }
 
 /// 支持的参数
@@ -213,6 +215,14 @@ pub(crate) fn parse_global_arg(
 
                     v.values.get_or_insert_with(Vec::new).push(trim_arg(ele));
                 }
+                OptionType::Number => {
+                    if let Ok(_) = ele.parse::<isize>() {
+                        let v = arg.opts.last_mut().unwrap();
+                        v.value = Some(trim_arg(ele));
+                    } else {
+                        parse_err!("opt -{} need a number, get {}", cu.key, ele);
+                    }
+                }
                 _ => {}
             }
             current = None;
@@ -339,6 +349,17 @@ pub(crate) fn parse_command_arg(
                         .get_or_insert_with(Vec::new)
                         .push(trim_arg(&ele));
                 }
+                OptionType::Number => {
+                    if let Ok(_) = ele.parse::<isize>() {
+                        arg.group
+                            .last_mut()
+                            .and_then(|f| f.opts.last_mut())
+                            .unwrap()
+                            .value = Some(trim_arg(&ele));
+                    } else {
+                        parse_err!("opt -{} need a number, get {}", cu.key, ele)
+                    }
+                }
                 _ => {}
             }
         } else if current_command.map_or(0, |f| f.support_args) != 0 {
@@ -365,6 +386,29 @@ pub(crate) fn parse_command_arg(
                     opts: Vec::new(),
                     args: Vec::new(),
                 })
+            }
+        }
+    }
+
+    // 校验必填参数
+    check_command_opt(arg, &command_option_def);
+}
+
+/// 校验子命令必填参数
+fn check_command_opt(arg: &Arg, command_option_def: &[CommandOptionDef]) {
+    for ele in command_option_def {
+        let c: Vec<&ArgOptionGroup> = arg
+            .group
+            .iter()
+            .filter(|s| s.command == ele.command)
+            .collect();
+        if !c.is_empty() {
+            for def in &ele.opts {
+                if def.required {
+                    if !c[0].opts.iter().any(|f| f.key == def.key) {
+                        parse_err!("sub command {} need arg -{}", ele.command, def.key)
+                    }
+                }
             }
         }
     }
@@ -433,7 +477,7 @@ mod tests {
                 key: "all".to_string(),
                 _type: OptionType::NoParamter,
                 desc: "St".to_string(),
-                required: true,
+                required: false,
             }],
             support_args: 0,
             ..Default::default()
@@ -450,13 +494,13 @@ mod tests {
                     key: "all".to_string(),
                     _type: OptionType::NoParamter,
                     desc: "St".to_string(),
-                    required: true,
+                    required: false,
                 },
                 OptionDef {
                     key: "demo".to_string(),
                     _type: OptionType::String,
                     desc: "St".to_string(),
-                    required: true,
+                    required: false,
                 },
             ],
             support_args: 0,
@@ -487,6 +531,84 @@ mod tests {
                 .as_ref()
                 .unwrap()
         );
+    }
+
+    /// 测试子命令必填参数
+    #[test]
+    #[should_panic(expected = "sub command get-info need arg -all")]
+    fn test_parse_command_requird() {
+        let mut arg = Arg::default();
+        let args = ["get-info", "-all"].iter().map(|f| f.to_string()).collect();
+        let command_option_def = vec![CommandOptionDef {
+            command: "get-info".to_string(),
+            opts: vec![OptionDef {
+                key: "all".to_string(),
+                _type: OptionType::NoParamter,
+                desc: "St".to_string(),
+                required: true,
+            }],
+            support_args: 0,
+            ..Default::default()
+        }];
+        parse_command_arg(&mut arg, args, command_option_def);
+
+        // 必填但未填
+        let mut arg = Arg::default();
+        let args = ["get-info"].iter().map(|f| f.to_string()).collect();
+        let command_option_def = vec![CommandOptionDef {
+            command: "get-info".to_string(),
+            opts: vec![OptionDef {
+                key: "all".to_string(),
+                _type: OptionType::NoParamter,
+                desc: "St".to_string(),
+                required: true,
+            }],
+            support_args: 0,
+            ..Default::default()
+        }];
+        parse_command_arg(&mut arg, args, command_option_def);
+    }
+
+    /// 测试子命令数字参数
+    #[test]
+    #[should_panic(expected = "opt -all need a number, get 302k")]
+    fn test_parse_command_number() {
+        let mut arg = Arg::default();
+        let args = ["get-info", "-all", "43"]
+            .iter()
+            .map(|f| f.to_string())
+            .collect();
+        let command_option_def = vec![CommandOptionDef {
+            command: "get-info".to_string(),
+            opts: vec![OptionDef {
+                key: "all".to_string(),
+                _type: OptionType::Number,
+                desc: "St".to_string(),
+                required: true,
+            }],
+            support_args: 0,
+            ..Default::default()
+        }];
+        parse_command_arg(&mut arg, args, command_option_def);
+
+        // 错误数字
+        let mut arg = Arg::default();
+        let args = ["get-info", "-all", "302k"]
+            .iter()
+            .map(|f| f.to_string())
+            .collect();
+        let command_option_def = vec![CommandOptionDef {
+            command: "get-info".to_string(),
+            opts: vec![OptionDef {
+                key: "all".to_string(),
+                _type: OptionType::Number,
+                desc: "St".to_string(),
+                required: true,
+            }],
+            support_args: 0,
+            ..Default::default()
+        }];
+        parse_command_arg(&mut arg, args, command_option_def);
     }
 }
 
