@@ -64,7 +64,7 @@ jobs:
           echo PREV_VERSION=$(cargo search iepub --limit 1 | sed -nE 's/^[^"]*"//; s/".*//1p' -) >> $GITHUB_OUTPUT
   publish:
     runs-on: ubuntu-24.04
-    needs: [check]
+    needs: [check,release]
     if: needs.check.outputs.NEXT_VERSION != needs.check.outputs.PREV_VERSION
     strategy:
       fail-fast: false
@@ -109,7 +109,7 @@ jobs:
           echo "New version $NEXT_VERSION has been published"
   release:
     runs-on: ubuntu-24.04
-    needs: [check, publish]
+    needs: [check]
     permissions:
       contents: write
       packages: write

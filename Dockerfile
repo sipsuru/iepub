@@ -1,4 +1,4 @@
-FROM ghcr.io/inkroomtemp/rust_musl_build:1.85
+FROM ghcr.io/inkroomtemp/rust_musl_build:1.85.0
 RUN apt update -y && cargo new app
 
 WORKDIR /workdir/app
