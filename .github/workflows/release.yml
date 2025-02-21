@@ -13,8 +13,8 @@ jobs:
       - name: Rust Version
         id: v
         run: |
-          # 最近10个rust版本
-          version=$(curl -sL  https://api.github.com/repos/rust-lang/rust/tags | jq -c --raw-output 'map(select(.name | startswith("release") | not)) | sort_by(.name) | reverse | .[:10] | [.[].name]')
+          # 最近6个rust版本
+          version=$(curl -sL  https://api.github.com/repos/rust-lang/rust/tags | jq -c --raw-output 'map(select(.name | startswith("release") | not)) | sort_by(.name) | reverse | .[:6] | [.[].name]')
           echo "$version"
           echo "rust=$version" >> $GITHUB_OUTPUT
   test:
@@ -41,7 +41,9 @@ jobs:
       - name: Test
         shell: bash
         run: |
-          if [[ "${{ matrix.version }}" < "1.79.0" ]]; then 
+          if [[ "${{ matrix.version }}" < "1.80.1" ]]; then 
+            sudo apt update -y
+            sudo apt-get install libssl-dev
             rustup toolchain install nightly-2024-06-21 && rustup default nightly-2024-06-21 && cargo -Zminimal-versions generate-lockfile && rustup default ${{ matrix.version }}; 
           fi
           cargo test --workspace --all-features -- --exact --show-output
