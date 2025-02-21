@@ -534,9 +534,9 @@ impl<T: Write + Seek> MobiWriter<T> {
                     .map(|f| f.file_name().to_string())
                     .collect::<Vec<String>>(),
             );
-            if self.append_title {
+            if self.append_title && !ele.title().is_empty() {
                 text.append(
-                    &mut format!(r#"<h1 style="text-align: center">{}></h1>"#, ele.title())
+                    &mut format!(r#"<h1 style="text-align: center">{}</h1>"#, ele.title())
                         .as_bytes()
                         .to_vec(),
                 );
