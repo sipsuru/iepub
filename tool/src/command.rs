@@ -19,14 +19,15 @@ fn is_overiade(global_opts: &[arg::ArgOption], opts: &[arg::ArgOption]) -> bool 
 /// 获取输入
 ///
 fn get_single_input(message: &str) -> Result<String, IError> {
-    println!("{}", message);
+    print!("{} ", message);
+    std::io::stdout().flush()?;
     use std::io::BufRead;
     let mut buffer = String::new();
     let stdin = std::io::stdin();
     let mut handle = stdin.lock();
 
     handle.read_line(&mut buffer)?;
-    Ok(buffer)
+    Ok(buffer.trim().to_string())
 }
 /// 创建一个命令，定死了代码基本结构
 macro_rules! create_command {
@@ -549,6 +550,7 @@ pub(crate) mod epub {
                 opts: vec![
                     OptionDef::create("f", "输出文件路径", OptionType::String, true),
                     OptionDef::create("n", "不添加标题，默认添加", OptionType::NoParamter, false),
+                    OptionDef::create("i", "缩进字符数", OptionType::Number, false),
                     OptionDef::over(),
                 ],
             }
@@ -584,7 +586,16 @@ pub(crate) mod epub {
                     .map(|(mobi, over)| {
                         if over {
                             msg!("writing file {}", path);
-                            return MobiWriter::write_to_file(path.as_str(), &mobi, append_title);
+                            return MobiWriter::write_to_file_with_ident(
+                                path.as_str(),
+                                &mobi,
+                                append_title,
+                                opts.iter()
+                                    .find(|f| f.key == "i")
+                                    .and_then(|f| f.value.clone())
+                                    .and_then(|f| f.parse::<usize>().ok())
+                                    .unwrap_or(0),
+                            );
                         }
                         Ok(())
                     })

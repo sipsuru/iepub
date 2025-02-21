@@ -402,18 +402,34 @@ pub struct MobiWriter<T: Write + Seek> {
     compression: u16,
     /// 是否添加标题，默认true
     append_title: bool,
+    /// 首行缩进字符，默认0，不缩进
+    ident: usize,
 }
 
 impl MobiWriter<std::fs::File> {
     /// 写入文件
     pub fn write_to_file(file: &str, book: &MobiBook, append_title: bool) -> IResult<()> {
+        Self::write_to_file_with_ident(file, book, append_title, 0)
+    }
+
+    /// 写入文件
+    pub fn write_to_file_with_ident(
+        file: &str,
+        book: &MobiBook,
+        append_title: bool,
+        ident: usize,
+    ) -> IResult<()> {
         std::fs::OpenOptions::new()
             .create(true)
             .truncate(true)
             .write(true)
             .open(file)
             .map_err(|e| IError::Io(e))
-            .map(|f| MobiWriter::new(f).with_append_title(append_title))
+            .map(|f| {
+                MobiWriter::new(f)
+                    .with_ident(ident)
+                    .with_append_title(append_title)
+            })
             // .map_or_else(|e| Err(IError::Io(e)), |f| MobiWriter::new(f))
             .and_then(|mut w| w.write(book))
     }
@@ -422,8 +438,18 @@ impl MobiWriter<std::fs::File> {
 impl MobiWriter<std::io::Cursor<Vec<u8>>> {
     /// 写入内存
     pub fn write_to_mem(book: &MobiBook, append_title: bool) -> IResult<Vec<u8>> {
+        Self::write_to_mem_with_ident(book, append_title, 0)
+    }
+
+    /// 写入内存
+    pub fn write_to_mem_with_ident(
+        book: &MobiBook,
+        append_title: bool,
+        ident: usize,
+    ) -> IResult<Vec<u8>> {
         let mut v = std::io::Cursor::new(Vec::new());
         MobiWriter::new(&mut v)
+            .with_ident(ident)
             .with_append_title(append_title)
             .write(book)?;
 
@@ -450,6 +476,7 @@ impl<T: Write + Seek> MobiWriter<T> {
             inner: BufWriter::new(value),
             compression: 1,
             append_title: true,
+            ident: 0,
         }
     }
 
@@ -459,6 +486,15 @@ impl<T: Write + Seek> MobiWriter<T> {
 
     pub fn with_append_title(mut self, value: bool) -> Self {
         self.set_append_title(value);
+        self
+    }
+
+    pub fn set_ident(&mut self, value: usize) {
+        self.ident = value;
+    }
+
+    pub fn with_ident(mut self, value: usize) -> Self {
+        self.set_ident(value);
         self
     }
 
@@ -528,7 +564,7 @@ impl<T: Write + Seek> MobiWriter<T> {
 
             add_break(&mut text);
             let mut v = generate_text_img_xml(
-                ele.data(),
+                self.html_p_ident(ele.data()).as_str(),
                 &book
                     .assets()
                     .map(|f| f.file_name().to_string())
@@ -561,6 +597,16 @@ impl<T: Write + Seek> MobiWriter<T> {
         }
         text.append(&mut "</body></html>".as_bytes().to_vec());
         text
+    }
+
+    fn html_p_ident(&self, text: &str)-> String {
+        // text.replace(from, to)
+        if self.ident == 0 {
+            text.to_string()
+        }else{
+            let v = format!(r#"<p width="{}em">"#,self.ident);
+            text.replace("<p ", v.as_str()).replace("<p>", v.as_str())
+        }
     }
 
     /// text record
