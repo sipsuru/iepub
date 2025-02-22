@@ -321,6 +321,21 @@ impl<T: Read + Seek> MobiReader<T> {
                     let _ = set_nav_id(nav, ele.nav_id, ele.id);
                 }
             }
+        } else if cfg!(feature = "no_nav") {
+            for (index, s) in sec.iter().enumerate() {
+                chapters.push(MobiHtml {
+                    id: id.fetch_add(1, std::sync::atomic::Ordering::Release),
+                    nav_id: index,
+                    index: s.index,
+                    title: format!("{}", index + 1),
+                    raw: None,
+                    data: s.data.clone(),
+                });
+            }
+        } else {
+            return Err(crate::common::IError::NoNav(
+                r#"book has no nav, enable feature "no_nav" to generate nav"#,
+            ));
         }
 
         let cover = self.read_cover()?;
@@ -346,12 +361,39 @@ impl<T: Read + Seek> MobiReader<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::mobi::reader::MobiReader;
+    use std::io::Read;
+
+    use crate::{common::IError, mobi::reader::MobiReader};
+
+    fn download_file(name: &str, url: &str) {
+        if std::fs::metadata(name).is_err() {
+            // 下载并解压
+
+            let mut zip = tinyget::get(url)
+                .send()
+                .map(|v| v.as_bytes().to_vec())
+                .map_err(|e| IError::InvalidArchive("download fail"))
+                .and_then(|f| {
+                    zip::ZipArchive::new(std::io::Cursor::new(f))
+                        .map_err(|e| IError::InvalidArchive("download fail"))
+                })
+                .unwrap();
+            let mut zip = zip.by_name(name).unwrap();
+            let mut v = Vec::new();
+            zip.read_to_end(&mut v).unwrap();
+            std::fs::write(name, &mut v).unwrap();
+        }
+    }
 
     #[test]
-    #[ignore = "dan.mobi"]
     fn test_load() {
-        let path = std::env::current_dir().unwrap().join("../dan.mobi");
+        let name = "3252.mobi";
+        download_file(
+            name,
+            "https://github.com/user-attachments/files/18904584/3252.zip",
+        );
+
+        let path = std::env::current_dir().unwrap().join(name);
         let mut mobi =
             MobiReader::new(std::fs::File::open(path.to_str().unwrap()).unwrap()).unwrap();
 
@@ -361,23 +403,63 @@ mod tests {
 
         println!("======");
 
-        println!("{:?}", book.chapters.len());
-        println!("======");
-
+        assert_eq!(24,book.chapters.len());
         println!("{:?}", book.chapters[0]);
 
         println!("======");
 
-        println!("{:?}", book.chapters[43]);
+        println!("{:?}", book.chapters[20]);
         println!("======");
 
-        println!("{:?}", book.images.len());
-
+        assert_eq!(1,book.images.len());
         println!("======");
         for ele in &book.chapters {
             println!("{} {}", ele.title, ele.nav_id);
         }
         println!("======");
         println!("{:?}", book.nav);
+    }
+
+    #[test]
+    #[cfg(feature = "no_nav")]
+    fn test_no_nav() {
+        let name = "convert.mobi";
+        download_file(
+            name,
+            "https://github.com/user-attachments/files/18818424/convert.mobi.zip",
+        );
+
+        let path = std::env::current_dir().unwrap().join(name);
+        let mut mobi =
+            MobiReader::new(std::fs::File::open(path.to_str().unwrap()).unwrap()).unwrap();
+
+        let book = mobi.load().unwrap();
+
+        println!("{:?}", book.info);
+
+        assert_eq!(188, book.chapters.len());
+    }
+
+    #[test]
+    #[cfg(not(feature = "no_nav"))]
+    #[should_panic(
+        expected = r#"called `Result::unwrap()` on an `Err` value: NoNav("book has no nav, enable feature \"no_nav\" to generate nav")"#
+    )]
+    fn test_no_nav() {
+        let name = "convert.mobi";
+        download_file(
+            name,
+            "https://github.com/user-attachments/files/18818424/convert.mobi.zip",
+        );
+
+        let path = std::env::current_dir().unwrap().join(name);
+        let mut mobi =
+            MobiReader::new(std::fs::File::open(path.to_str().unwrap()).unwrap()).unwrap();
+
+        let book = mobi.load().unwrap();
+
+        println!("{:?}", book.info);
+
+        assert_eq!(188, book.chapters.len());
     }
 }
