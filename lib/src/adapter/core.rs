@@ -353,16 +353,36 @@ pub fn epub_to_mobi(epub: &mut EpubBook) -> IResult<MobiBook> {
 
 #[cfg(test)]
 mod tests {
-
+    use std::io::Read;
     use crate::{
         adapter::core::convert_epub_html_img,
         common::IError,
+        epub::core::EpubReaderTrait,
         mobi::core::MobiAssets,
-        prelude::{EpubBuilder, EpubHtml, EpubWriter, MobiReader, MobiWriter},
+        prelude::{read_from_file, EpubBuilder, EpubHtml, EpubWriter, MobiReader, MobiWriter},
     };
 
     use super::{convert_mobi_html_data, epub_to_mobi, mobi_to_epub};
 
+    fn download_file(name: &str, url: &str) {
+        if std::fs::metadata(name).is_err() {
+            // 下载并解压
+
+            let mut zip = tinyget::get(url)
+                .send()
+                .map(|v| v.as_bytes().to_vec())
+                .map_err(|e| IError::InvalidArchive("download fail"))
+                .and_then(|f| {
+                    zip::ZipArchive::new(std::io::Cursor::new(f))
+                        .map_err(|e| IError::InvalidArchive("download fail"))
+                })
+                .unwrap();
+            let mut zip = zip.by_name(name).unwrap();
+            let mut v = Vec::new();
+            zip.read_to_end(&mut v).unwrap();
+            std::fs::write(name, &mut v).unwrap();
+        }
+    }
     #[test]
     #[ignore = "dan.mobi"]
     fn test_convert() {
@@ -380,6 +400,33 @@ mod tests {
         let mut epub = mobi_to_epub(&mut book).unwrap();
         EpubWriter::write_to_mem(&mut epub, true).unwrap();
         // epub.write("convert.epub").unwrap();
+    }
+
+    
+    #[test]
+    #[cfg(feature = "no_nav")]
+    fn test_convert_no_nav() {
+        let name = "convert.mobi";
+        download_file(
+            name,
+            "https://github.com/user-attachments/files/18818424/convert.mobi.zip",
+        );
+
+        let path = std::env::current_dir().unwrap().join(name);
+        let mut mobi =
+            MobiReader::new(std::fs::File::open(path.to_str().unwrap()).unwrap()).unwrap();
+
+        let mut book = mobi.load().unwrap();
+
+
+        assert_eq!(188, book.chapters().len());
+        let mut epub = mobi_to_epub(&mut book).unwrap();
+
+
+        assert_eq!(188,epub.chapters().len());
+        assert_eq!(Some("1"),epub.chapters().next().map(|f|f.title()));
+
+        EpubWriter::write_to_mem(&mut epub, false).unwrap();
     }
 
     #[test]
