@@ -322,16 +322,20 @@ impl<T: Read + Seek> MobiReader<T> {
                 }
             }
         } else if cfg!(feature = "no_nav") {
+            let mut t_nav = Vec::new(); 
             for (index, s) in sec.iter().enumerate() {
-                chapters.push(MobiHtml {
+                let html = MobiHtml {
                     id: id.fetch_add(1, std::sync::atomic::Ordering::Release),
                     nav_id: index,
                     index: s.index,
                     title: format!("{}", index + 1),
                     raw: None,
                     data: s.data.clone(),
-                });
+                };
+                t_nav.push(MobiNav::new(index, html.id).with_title(html.title()));
+                chapters.push(html);
             }
+            nav = Some(t_nav);
         } else {
             return Err(crate::common::IError::NoNav(
                 r#"book has no nav, enable feature "no_nav" to generate nav"#,
