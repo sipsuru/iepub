@@ -47,7 +47,7 @@ pub(crate) fn to_html(chap: &mut EpubHtml, append_title: bool) -> String {
   </body>
 </html>"#,
         if append_title {
-            format!(r#"<h1 style="texe-align: center">{}</h1>"#, title)
+            format!(r#"<h1 style="text-align: center">{}</h1>"#, title)
         } else {
             String::new()
         }
@@ -475,7 +475,7 @@ mod test {
 <style type="text/css">#id{width:10%}</style>
 </head>
   <body>
-    <h1 style="texe-align: center">title</h1>
+    <h1 style="text-align: center">title</h1>
 ok
   </body>
 </html>"###
