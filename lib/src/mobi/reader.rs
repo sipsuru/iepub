@@ -882,7 +882,10 @@ impl<T: Read + Seek> MobiReader<T> {
 
                 prev.end = i - sub_bytes.len();
 
-                prev.data = self.decode_text(&text[(prev.start + if prev.start == 0 {0}else{sub_bytes.len()})..prev.end])?;
+                prev.data = self.decode_text(
+                    &text[(prev.start + if prev.start == 0 { 0 } else { sub_bytes.len() })
+                        ..prev.end],
+                )?;
                 pos.push(prev);
                 prev = TextSection {
                     index: pos.last().unwrap().index + 1,

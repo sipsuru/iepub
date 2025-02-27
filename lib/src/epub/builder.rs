@@ -298,11 +298,7 @@ mod tests {
         }).unwrap();
 
         EpubBuilder::default()
-            .auto_gen_cover(if cfg!(feature = "cover") {
-                true
-            }else {
-                false
-            })
+            .auto_gen_cover(if cfg!(feature = "cover") { true } else { false })
             .with_font_bytes(font)
             .with_title("书名")
             .with_creator("作者")

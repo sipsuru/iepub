@@ -322,7 +322,7 @@ impl<T: Read + Seek> MobiReader<T> {
                 }
             }
         } else if cfg!(feature = "no_nav") {
-            let mut t_nav = Vec::new(); 
+            let mut t_nav = Vec::new();
             for (index, s) in sec.iter().enumerate() {
                 let html = MobiHtml {
                     id: id.fetch_add(1, std::sync::atomic::Ordering::Release),
@@ -407,7 +407,7 @@ mod tests {
 
         println!("======");
 
-        assert_eq!(24,book.chapters.len());
+        assert_eq!(24, book.chapters.len());
         println!("{:?}", book.chapters[0]);
 
         println!("======");
@@ -415,7 +415,7 @@ mod tests {
         println!("{:?}", book.chapters[20]);
         println!("======");
 
-        assert_eq!(1,book.images.len());
+        assert_eq!(1, book.images.len());
         println!("======");
         for ele in &book.chapters {
             println!("{} {}", ele.title, ele.nav_id);
