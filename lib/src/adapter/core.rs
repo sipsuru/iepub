@@ -133,9 +133,17 @@ pub fn mobi_to_epub(mobi: &mut MobiBook) -> IResult<EpubBook> {
 /// 转换 mobi 的 html 文本，主要是处理其中的img标签，添加src属性
 fn convert_mobi_html_data(indent: usize, data: &str, assets: &[MobiAssets]) -> Vec<u8> {
     let mut v = data.to_string();
-    let indent = (0..indent).map(|_| "..").collect::<Vec<&str>>().join("/");
+    let indent = (0..indent).map(|_| "../").collect::<Vec<&str>>().join("");
     for ele in assets {
-        let target = format!(r#"src="{}/{}""#, indent, get_mobi_assets_file_name(ele));
+        let target = format!(
+            r#"src="{}{}""#,
+            if indent.is_empty() {
+                "./"
+            } else {
+                indent.as_str()
+            },
+            get_mobi_assets_file_name(ele)
+        );
         // 还有层级问题
         // 有可能误伤，但是暂时没有更好的办法
         v = v
@@ -353,7 +361,6 @@ pub fn epub_to_mobi(epub: &mut EpubBook) -> IResult<MobiBook> {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Read;
     use crate::{
         adapter::core::convert_epub_html_img,
         common::IError,
@@ -361,6 +368,7 @@ mod tests {
         mobi::core::MobiAssets,
         prelude::{read_from_file, EpubBuilder, EpubHtml, EpubWriter, MobiReader, MobiWriter},
     };
+    use std::io::Read;
 
     use super::{convert_mobi_html_data, epub_to_mobi, mobi_to_epub};
 
@@ -402,7 +410,6 @@ mod tests {
         // epub.write("convert.epub").unwrap();
     }
 
-    
     #[test]
     #[cfg(feature = "no_nav")]
     fn test_convert_no_nav() {
@@ -504,6 +511,15 @@ mod tests {
             r#"<h1>插图</h1>
 <p height="1em" width="0pt" align="center"><font size="7"><b>第六卷</b></font></p><p height="1em" width="0pt" align="center"><font size="6"><b>插图</b></font></p><p height="1em" width="0pt"> <img src="../../image/1.jpg" align="baseline" width="1086" height="1526"></img><a href="https://pic.wenku8.com/pictures/1/1946/105571/129720.jpg"> </a> </p><p height="3pt" width="0pt"> <img recindex="00018" align="baseline" width="600" height="800"></img><a href="https://pic.wenku8.com/pictures/1/1946/105571/129721.jpg"> </a> </p><p height="3pt" width="0pt"> <img src="../../image/2.jpg" align="baseline" width="600" height="800"></img><a href="https://pic.wenku8.com/pictures/1/1946/105571/129722.jpg"> </a> </p><p height="3pt" width="0pt"> <img recindex="00019" align="baseline" width="580" height="799"></img><a href="https://pic.wenku8.com/pictures/1/1946/105571/129723.jpg"> </a> </p><p height="3pt" width="0pt"> <img recindex="00061" align="baseline" width="800" height="600"></img><a href="https://pic.wenku8.com/pictures/1/1946/105571/129724.jpg"> </a> </p><p height="3pt" width="0pt"> <img recindex="00024" align="baseline" width="759" height="451"></img><a href="https://pic.wenku8.com/pictures/1/1946/105571/129725.jpg"> </a> </p><p height="3pt" width="0pt"> <img recindex="00062" align="baseline" width="800" height="600"></img><a href="https://pic.wenku8.com/pictures/1/1946/105571/129726.jpg"> </a> </p><p height="3pt" width="0pt"> <img recindex="00025" align="baseline" width="600" height="800"></img><a href="https://pic.wenku8.com/pictures/1/1946/105571/129727.jpg"> </a> </p><p height="3pt" width="0pt"> <img recindex="00063" align="baseline" width="500" height="666"></img><a href="https://pic.wenku8.com/pictures/1/1946/105571/129728.jpg"> </a> </p>"#
         );
+
+        let r = convert_mobi_html_data(0, data, &assets);
+
+        assert_eq!(
+            String::from_utf8(r).unwrap(),
+            r#"<h1>插图</h1>
+<p height="1em" width="0pt" align="center"><font size="7"><b>第六卷</b></font></p><p height="1em" width="0pt" align="center"><font size="6"><b>插图</b></font></p><p height="1em" width="0pt"> <img src="./image/1.jpg" align="baseline" width="1086" height="1526"></img><a href="https://pic.wenku8.com/pictures/1/1946/105571/129720.jpg"> </a> </p><p height="3pt" width="0pt"> <img recindex="00018" align="baseline" width="600" height="800"></img><a href="https://pic.wenku8.com/pictures/1/1946/105571/129721.jpg"> </a> </p><p height="3pt" width="0pt"> <img src="./image/2.jpg" align="baseline" width="600" height="800"></img><a href="https://pic.wenku8.com/pictures/1/1946/105571/129722.jpg"> </a> </p><p height="3pt" width="0pt"> <img recindex="00019" align="baseline" width="580" height="799"></img><a href="https://pic.wenku8.com/pictures/1/1946/105571/129723.jpg"> </a> </p><p height="3pt" width="0pt"> <img recindex="00061" align="baseline" width="800" height="600"></img><a href="https://pic.wenku8.com/pictures/1/1946/105571/129724.jpg"> </a> </p><p height="3pt" width="0pt"> <img recindex="00024" align="baseline" width="759" height="451"></img><a href="https://pic.wenku8.com/pictures/1/1946/105571/129725.jpg"> </a> </p><p height="3pt" width="0pt"> <img recindex="00062" align="baseline" width="800" height="600"></img><a href="https://pic.wenku8.com/pictures/1/1946/105571/129726.jpg"> </a> </p><p height="3pt" width="0pt"> <img recindex="00025" align="baseline" width="600" height="800"></img><a href="https://pic.wenku8.com/pictures/1/1946/105571/129727.jpg"> </a> </p><p height="3pt" width="0pt"> <img recindex="00063" align="baseline" width="500" height="666"></img><a href="https://pic.wenku8.com/pictures/1/1946/105571/129728.jpg"> </a> </p>"#
+        );
+
     }
 
     #[test]
