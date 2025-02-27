@@ -111,7 +111,9 @@ fn check_input_type(arg: &Arg) -> Option<(usize, String)> {
 
     None
 }
-
+mod info {
+    include!(concat!(env!("OUT_DIR"), "/version.rs"));
+}
 fn print_useage(arg: &Arg, exe_file_name: &str) -> bool {
     if arg.find_opt("h").is_some() {
         println!(
@@ -135,6 +137,7 @@ fn print_useage(arg: &Arg, exe_file_name: &str) -> bool {
         for ele in commands::mobi::create_command_option_def() {
             println!("{}", ele);
         }
+        println!("version: {}",info::PKG_VERSION);
         return true;
     }
     false
