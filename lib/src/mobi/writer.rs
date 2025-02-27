@@ -599,12 +599,12 @@ impl<T: Write + Seek> MobiWriter<T> {
         text
     }
 
-    fn html_p_ident(&self, text: &str)-> String {
+    fn html_p_ident(&self, text: &str) -> String {
         // text.replace(from, to)
         if self.ident == 0 {
             text.to_string()
-        }else{
-            let v = format!(r#"<p width="{}em">"#,self.ident);
+        } else {
+            let v = format!(r#"<p width="{}em">"#, self.ident);
             text.replace("<p ", v.as_str()).replace("<p>", v.as_str())
         }
     }
