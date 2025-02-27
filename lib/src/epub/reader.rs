@@ -747,7 +747,7 @@ mod tests {
 
         assert_eq!(
             r#"
-    <h1 style="texe-align: center">ok</h1>
+    <h1 style="text-align: center">ok</h1>
 html
   "#,
             d
