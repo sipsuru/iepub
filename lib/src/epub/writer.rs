@@ -17,9 +17,7 @@ impl From<zip::result::ZipError> for IError {
     fn from(value: zip::result::ZipError) -> Self {
         match value {
             zip::result::ZipError::Io(io) => IError::Io(io),
-            zip::result::ZipError::InvalidArchive(v) => {
-                IError::InvalidArchive(Box::leak(v.into_owned().into_boxed_str()))
-            }
+            zip::result::ZipError::InvalidArchive(v) => IError::InvalidArchive(v.to_string()),
             zip::result::ZipError::UnsupportedArchive(v) => IError::UnsupportedArchive(v),
             zip::result::ZipError::InvalidPassword => IError::InvalidPassword,
             zip::result::ZipError::FileNotFound => IError::FileNotFound,

@@ -7,7 +7,7 @@ pub enum IError {
     /// io 错误
     Io(std::io::Error),
     /// invalid Zip archive: {0}
-    InvalidArchive(&'static str),
+    InvalidArchive(String),
 
     /// unsupported Zip archive: {0}
     UnsupportedArchive(&'static str),
