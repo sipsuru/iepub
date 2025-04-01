@@ -2,17 +2,17 @@ use std::{
     io::{Read, Seek},
     ops::Deref,
 };
-
+use std::borrow::Cow;
 use quick_xml::events::BytesStart;
 
 use super::core::EpubReaderTrait;
 use crate::prelude::*;
 macro_rules! invalid {
     ($x:tt) => {
-        Err(IError::InvalidArchive(String::from($x)))
+        Err(IError::InvalidArchive(Cow::from($x)))
     };
     ($x:expr,$y:expr) => {
-        $x.or(Err(IError::InvalidArchive(String::from($y))))?
+        $x.or(Err(IError::InvalidArchive(Cow::from($y))))?
     };
 }
 
@@ -50,7 +50,7 @@ fn get_opf_location(xml: &str) -> IResult<String> {
                                 .map_or_else(|_| String::new(), |v| v.to_string())
                         }) {
                             Some(v) => Ok(v),
-                            None => Err(IError::InvalidArchive(String::from("has no opf"))),
+                            None => Err(IError::InvalidArchive(Cow::from("has no opf"))),
                         };
                     }
                 }
