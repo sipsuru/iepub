@@ -1,4 +1,4 @@
-use std::{ops::Deref, string::FromUtf8Error};
+use std::{borrow::Cow, ops::Deref, string::FromUtf8Error};
 ///
 /// 错误
 ///
@@ -7,7 +7,7 @@ pub enum IError {
     /// io 错误
     Io(std::io::Error),
     /// invalid Zip archive: {0}
-    InvalidArchive(String),
+    InvalidArchive(Cow<'static, str>),
 
     /// unsupported Zip archive: {0}
     UnsupportedArchive(&'static str),
