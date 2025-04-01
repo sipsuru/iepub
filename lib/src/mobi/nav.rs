@@ -325,7 +325,7 @@ fn read_blockquote(reader: &mut Reader<Cursor<Vec<u8>>>, parent: &mut MobiNav) -
                 if let Some(n) = &mut now {
                     n.title = match e.unescape() {
                         Ok(v) => v.deref().to_string(),
-                        Err(_) => return Err(IError::InvalidArchive("xml error")),
+                        Err(_) => return Err(IError::InvalidArchive(String::from("xml error"))),
                     };
                 }
             }

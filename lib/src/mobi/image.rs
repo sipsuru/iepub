@@ -46,7 +46,7 @@ pub(crate) fn read_image_recindex_from_html(html: &[u8]) -> IResult<Vec<usize>> 
         match reader.read_event_into(&mut buf) {
             Ok(Event::Start(e)) => {
                 let name = String::from_utf8(e.name().as_ref().to_vec())
-                    .map_err(|_| IError::InvalidArchive("not a img"))?;
+                    .map_err(|_| IError::InvalidArchive(String::from("not a img")))?;
 
                 if name == "img" {
                     let recindex = e.get_recindex();

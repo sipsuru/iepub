@@ -9,10 +9,10 @@ use super::core::EpubReaderTrait;
 use crate::prelude::*;
 macro_rules! invalid {
     ($x:tt) => {
-        Err(IError::InvalidArchive($x))
+        Err(IError::InvalidArchive(String::from($x)))
     };
     ($x:expr,$y:expr) => {
-        $x.or(Err(IError::InvalidArchive($y)))?
+        $x.or(Err(IError::InvalidArchive(String::from($y))))?
     };
 }
 
@@ -50,7 +50,7 @@ fn get_opf_location(xml: &str) -> IResult<String> {
                                 .map_or_else(|_| String::new(), |v| v.to_string())
                         }) {
                             Some(v) => Ok(v),
-                            None => Err(IError::InvalidArchive("has no opf")),
+                            None => Err(IError::InvalidArchive(String::from("has no opf"))),
                         };
                     }
                 }

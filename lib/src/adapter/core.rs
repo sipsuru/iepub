@@ -379,10 +379,10 @@ mod tests {
             let mut zip = tinyget::get(url)
                 .send()
                 .map(|v| v.as_bytes().to_vec())
-                .map_err(|e| IError::InvalidArchive("download fail"))
+                .map_err(|e| IError::InvalidArchive(String::from("download fail")))
                 .and_then(|f| {
                     zip::ZipArchive::new(std::io::Cursor::new(f))
-                        .map_err(|e| IError::InvalidArchive("download fail"))
+                        .map_err(|e| IError::InvalidArchive(String::from("download fail")))
                 })
                 .unwrap();
             let mut zip = zip.by_name(name).unwrap();
