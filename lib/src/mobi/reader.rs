@@ -5,8 +5,7 @@
 //!
 
 use std::{
-    collections::HashMap,
-    io::{BufReader, Read, Seek, SeekFrom},
+    borrow::Cow, collections::HashMap, io::{BufReader, Read, Seek, SeekFrom}
 };
 
 use crate::{
@@ -211,7 +210,7 @@ impl EXTHHeader {
         let mut v = Self::default();
 
         if "EXTH" != reader.read_string(4)? {
-            return Err(IError::InvalidArchive("not a exth"));
+            return Err(IError::InvalidArchive(Cow::from("not a exth")));
         }
 
         v.len = reader.read_u32()?;
@@ -291,7 +290,7 @@ impl INDXRecord {
         let mut v = Self::default();
 
         if reader.read_string(4)? != "INDX" {
-            return Err(IError::InvalidArchive("not a indx"));
+            return Err(IError::InvalidArchive(Cow::from("not a indx")));
         }
 
         v.len = reader.read_u32()?;
@@ -502,7 +501,7 @@ impl<T: Read + Seek> MobiReader<T> {
         reader.seek(SeekFrom::Start(60))?;
 
         if reader.read_string(8)? != "BOOKMOBI" {
-            return Err(IError::InvalidArchive("not a mobi"));
+            return Err(IError::InvalidArchive(Cow::from("not a mobi")));
         }
         reader.seek(SeekFrom::Start(0))?;
 
@@ -583,7 +582,7 @@ impl<T: Read + Seek> MobiReader<T> {
             let indx = INDXRecord::load(&mut self.reader)?;
 
             if self.reader.read_string(4)? != "TAGX" {
-                return Err(IError::InvalidArchive("not a tagx"));
+                return Err(IError::InvalidArchive(Cow::from("not a tagx")));
             }
             let mut tagx_table: Vec<[u8; 4]> = Vec::new();
             let len = self.reader.read_u32()?;

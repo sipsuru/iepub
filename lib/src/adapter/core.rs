@@ -368,7 +368,7 @@ mod tests {
         mobi::core::MobiAssets,
         prelude::{read_from_file, EpubBuilder, EpubHtml, EpubWriter, MobiReader, MobiWriter},
     };
-    use std::io::Read;
+    use std::{borrow::Cow, io::Read};
 
     use super::{convert_mobi_html_data, epub_to_mobi, mobi_to_epub};
 
@@ -379,10 +379,10 @@ mod tests {
             let mut zip = tinyget::get(url)
                 .send()
                 .map(|v| v.as_bytes().to_vec())
-                .map_err(|e| IError::InvalidArchive("download fail"))
+                .map_err(|e| IError::InvalidArchive(Cow::from("download fail")))
                 .and_then(|f| {
                     zip::ZipArchive::new(std::io::Cursor::new(f))
-                        .map_err(|e| IError::InvalidArchive("download fail"))
+                        .map_err(|e| IError::InvalidArchive(Cow::from("download fail")))
                 })
                 .unwrap();
             let mut zip = zip.by_name(name).unwrap();
