@@ -1,9 +1,9 @@
+use quick_xml::events::BytesStart;
+use std::borrow::Cow;
 use std::{
     io::{Read, Seek},
     ops::Deref,
 };
-use std::borrow::Cow;
-use quick_xml::events::BytesStart;
 
 use super::core::EpubReaderTrait;
 use crate::prelude::*;
@@ -595,9 +595,11 @@ impl<T: Read + Seek> EpubReaderTrait for EpubReader<T> {
                 {
                     // 读取导航
                     if let Some(toc) = book.assets().find(|s| s.id() == "ncx") {
-                        let dir: Vec<_> = path.split("/").collect();
+                        let t = crate::path::Path::system(path.as_str())
+                            .pop()
+                            .join(toc.file_name())
+                            .to_str();
 
-                        let t = format!("{}/{}", dir[0], toc.file_name());
                         if reader.by_name(t.as_str()).is_ok() {
                             let content = read_from_zip!(reader, t.as_str());
 
@@ -780,4 +782,45 @@ html
         assert_eq!(1, n[0].child().len());
         assert_eq!("", n[0].child()[0].title());
     }
+
+    fn download_file(name: &str, url: &str) {
+        if std::fs::metadata(name).is_err() {
+            // 下载并解压
+
+            let mut zip = tinyget::get(url)
+                .send()
+                .map(|v| v.as_bytes().to_vec())
+                .map_err(|e| IError::InvalidArchive(std::borrow::Cow::from("download fail")))
+                .and_then(|f| {
+                    zip::ZipArchive::new(std::io::Cursor::new(f)).map_err(|e| {
+                        IError::InvalidArchive(std::borrow::Cow::from("download fail"))
+                    })
+                })
+                .unwrap();
+            let mut zip = zip.by_name(name).unwrap();
+            let mut v = Vec::new();
+            std::io::Read::read_to_end(&mut zip, &mut v).unwrap();
+            std::fs::write(name, &mut v).unwrap();
+        }
+    }
+
+    #[test]
+    fn test_tox_ncc_path() {
+        // 测试不同的toc.ncx文件位置
+        let name = "epub-book.epub";
+        download_file(
+            name,
+            "https://github.com/user-attachments/files/19544787/epub-book.epub.zip",
+        );
+
+        let book = read_from_file(name).unwrap();
+
+        let nav = book.nav();
+
+        assert_ne!(0, nav.len());
+        // println!("{:?}",book.chapters());
+        // println!("{:?}",book.nav());
+        // println!("{:?}",book.assets());
+    }
+
 }
