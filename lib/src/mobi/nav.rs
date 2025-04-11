@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::ops::Deref;
@@ -325,7 +326,7 @@ fn read_blockquote(reader: &mut Reader<Cursor<Vec<u8>>>, parent: &mut MobiNav) -
                 if let Some(n) = &mut now {
                     n.title = match e.unescape() {
                         Ok(v) => v.deref().to_string(),
-                        Err(_) => return Err(IError::InvalidArchive("xml error")),
+                        Err(_) => return Err(IError::InvalidArchive(Cow::from("xml error"))),
                     };
                 }
             }
