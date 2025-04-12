@@ -6,7 +6,7 @@ mod common;
 mod cover;
 mod epub;
 mod mobi;
-mod path;
+pub mod path;
 
 pub mod prelude {
     pub use crate::common::IError;
@@ -43,5 +43,6 @@ pub mod prelude {
     pub mod adapter {
         pub use crate::adapter::core::epub_to_mobi;
         pub use crate::adapter::core::mobi_to_epub;
+        pub use crate::adapter::core::concat::add_into_epub;
     }
 }

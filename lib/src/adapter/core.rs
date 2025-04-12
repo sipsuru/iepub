@@ -195,17 +195,22 @@ fn epub_nav_to_mobi_nav(
 
 /// 处理图片地址，把可能存在的相对路径换成绝对路径
 fn convert_epub_html_img(html: String, path: &str) -> String {
-    let path = crate::path::Path::system(path).pop();
-    // .unwrap_or(std::path::Path::new("/"));
+    let current = crate::path::Path::system(path).pop();
 
-    String::from_utf8(generate_text_img_xml(html.as_str(), &path)).unwrap_or_else(|_| String::new())
+    String::from_utf8(generate_text_img_xml(html.as_bytes(), |v| {
+        let path = String::from_utf8(v).unwrap_or(String::new());
+        // 修正路径
+        let t = current.join(path.as_str());
+        format!("src='{}'", t.to_str()).as_bytes().to_vec()
+    }))
+    .unwrap_or_else(|_| String::new())
 }
 
 /// 修改xml片段中的img标签的src属性的路径
-pub fn generate_text_img_xml(html: &str, current: &crate::path::Path) -> Vec<u8> {
+pub fn generate_text_img_xml<T: Fn(Vec<u8>) -> Vec<u8>>(html: &[u8], callback: T) -> Vec<u8> {
     let mut text = Vec::new();
     let mut index: usize = 0;
-    let chars = html.as_bytes();
+    let chars = html;
 
     let key = b"<img ";
 
@@ -236,19 +241,8 @@ pub fn generate_text_img_xml(html: &str, current: &crate::path::Path) -> Vec<u8>
                 }
                 index += start;
 
-                let path = String::from_utf8(v).unwrap_or(String::new());
-
-                // 修正路径
-                let t = current.join(path.as_str());
-                // let n = t
-                //     .canonicalize()
-                //     .map(|f| f.to_str().map(|v| v.to_string()))
-                //     .map_or(None, |f| f)
-                //     .unwrap_or_else(|| String::new());
+                text.append(&mut callback(v));
                 let len = att.2;
-
-                text.append(&mut format!("src='{}'", t.to_str()).as_bytes().to_vec());
-
                 index += len - 1;
 
                 continue;
@@ -357,16 +351,262 @@ pub fn epub_to_mobi(epub: &mut EpubBook) -> IResult<MobiBook> {
     builder.book()
 }
 
-// pub fn epub_to_mobi(epub:&mut EpubBook) ->IResult<>
+pub mod concat {
+    use crate::{
+        common::{get_media_type, IResult},
+        path,
+        prelude::{EpubBook, EpubBuilder, EpubHtml, EpubNav},
+    };
+    use std::collections::{HashMap, HashSet};
 
+    use super::generate_text_img_xml;
+
+    fn clone_epub_nav(
+        nav: &EpubNav,
+        new_file_name: &mut HashMap<String, String>,
+        len: usize,
+    ) -> (EpubNav, usize) {
+        let mut len = len;
+        let mut new_nav = EpubNav::default().with_title(nav.title());
+
+        if let Some(nt) = new_file_name.get(nav.file_name()) {
+            new_nav.set_file_name(nt.as_str());
+        } else {
+            let nt = crate::path::Path::system(nav.file_name())
+                .pop()
+                .join(format!("text/{:05}.xhtml", len).as_str())
+                .to_str();
+            new_nav.set_file_name(nt.as_str());
+            new_file_name.insert(nav.file_name().to_string(), nt);
+            len += 1;
+        }
+
+        for ele in nav.child() {
+            let (nav, l) = clone_epub_nav(ele, new_file_name, len);
+            len = len + l;
+            new_nav.push(nav);
+        }
+        (new_nav, len)
+    }
+
+    /// 替换html文本中的资源文件
+    /// [data] html数据
+    /// [asset_map] asset路径新旧映射
+    /// [old_chapter_file] 章节文件旧目录
+    /// [new_chapter_file] 章节文件新目录
+    fn replace_html_assets(
+        data: &[u8],
+        asset_map: &HashMap<String, String>,
+        old_chapter_file: String,
+        new_chapter_file: &str,
+    ) -> Vec<u8> {
+        generate_text_img_xml(data, |v| {
+            // 根据旧的src，转换成文件路径，再找到对应的新的文件路径，再转换成新的src
+            String::from_utf8(v)
+                .ok()
+                .map(|f| {
+                    path::Path::system(old_chapter_file.as_str())
+                        .pop()
+                        .join(f.as_str())
+                        .to_str()
+                })
+                .and_then(|f| asset_map.get(f.as_str()).clone())
+                .map(|f| {
+                    format!(
+                        r#"src="{}""#,
+                        crate::path::Path::system(new_chapter_file)
+                            .pop()
+                            .releative(f.as_str())
+                    )
+                    .as_bytes()
+                    .to_vec()
+                })
+                .unwrap_or(Vec::new())
+        })
+    }
+
+    pub fn add_into_epub(
+        builder: EpubBuilder,
+        epub: &mut EpubBook,
+        len: usize,
+        asset_len: usize,
+        skip: usize,
+    ) -> IResult<(EpubBuilder, usize, usize)> {
+        let mut len = len;
+        let mut asset_len = asset_len;
+        let mut builder = builder;
+        let mut new_file_name = HashMap::new();
+        let mut new_asset_file_name = HashMap::new();
+        // 图片也要重新编号
+
+        for ele in epub.assets_mut() {
+            if !get_media_type(ele.file_name()).contains("image") {
+                // 暂不考虑非图片资源
+                continue;
+            }
+            let f = ele.data().unwrap().to_vec();
+            asset_len += 1;
+
+            let sufix = ele.file_name().find(|f| f == '.').unwrap_or(0);
+            let sufix = &ele.file_name()[(sufix + 1)..];
+            let nn = format!("image/{}.{}", asset_len, sufix);
+            builder = builder.add_assets(nn.as_str(), f);
+            new_asset_file_name.insert(ele.file_name().to_string(), nn);
+        }
+
+        let mut rm = HashSet::new();
+
+        // 文件名需要重新编号，所以目录也要变一下
+        for (index, ele) in epub.nav().iter().enumerate() {
+            let (nav, l) = clone_epub_nav(ele, &mut new_file_name, len);
+            len = l;
+            if index < skip {
+                rm.insert(ele.file_name().to_string());
+                continue;
+            }
+            builder = builder.add_nav(nav);
+        }
+        for ele in epub.chapters_mut() {
+            if rm.contains(ele.file_name()) {
+                continue;
+            }
+            let old = ele.file_name().to_string();
+            if let Some(v) = new_file_name.get(ele.file_name()) {
+                builder = builder.add_chapter(
+                    EpubHtml::default()
+                        .with_file_name(v.as_str())
+                        .with_title(ele.title())
+                        .with_data(replace_html_assets(
+                            ele.data().unwrap(),
+                            &new_asset_file_name,
+                            old.to_string(),
+                            v.as_str(),
+                        )),
+                );
+            } else {
+                // 按理说不应该出现不在目录里的xhtml
+            }
+        }
+
+        Ok((builder, len, asset_len))
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use std::collections::HashMap;
+
+        use crate::prelude::{adapter::add_into_epub, EpubBuilder, EpubHtml, EpubNav};
+
+        use super::replace_html_assets;
+
+        #[test]
+        fn test_replace_html_img_src() {
+            let asset_map = HashMap::from([("2.png".to_string(), "384.png".to_string())]);
+            let old_chapter_file = "3.xhtml";
+            let new_chapter_file = "n.xhtml";
+            let html = r#"<p>测试<img src="2.png"></p>"#;
+            let res = replace_html_assets(
+                html.as_bytes(),
+                &asset_map,
+                old_chapter_file.to_string(),
+                new_chapter_file,
+            );
+            assert_eq!(
+                r#"<p>测试<img src="384.png"></p>"#,
+                String::from_utf8(res).unwrap().as_str()
+            );
+        }
+
+        #[test]
+        fn concat_epub() {
+            let mut nav = EpubNav::default()
+                .with_title("1.")
+                .with_file_name("1/1.xhtml");
+            nav.push(
+                EpubNav::default()
+                    .with_title("1.1")
+                    .with_file_name("1/1.xhtml"),
+            );
+            let mut builder = EpubBuilder::new()
+                .custome_nav(true)
+                .with_title("测试合并")
+                .with_creator("作者")
+                .add_nav(nav)
+                .add_nav(
+                    EpubNav::default()
+                        .with_title("2.")
+                        .with_file_name("1/2.xhtml"),
+                )
+                .add_chapter(
+                    EpubHtml::default()
+                        .with_file_name("1/1.xhtml")
+                        .with_title("1.")
+                        .with_data(b"<p>1.</p>".to_vec()),
+                )
+                .add_chapter(
+                    EpubHtml::default()
+                        .with_file_name("1/2.xhtml")
+                        .with_title("2.")
+                        .with_data(b"<p>2.</p>".to_vec()),
+                );
+            let mut book1 = builder.book().unwrap();
+            // book2
+            let mut nav = EpubNav::default()
+                .with_title("3.")
+                .with_file_name("2/1.xhtml");
+            nav.push(
+                EpubNav::default()
+                    .with_title("3.1")
+                    .with_file_name("2/1.xhtml"),
+            );
+            let mut builder = EpubBuilder::new()
+                .custome_nav(true)
+                .with_title("测试合并2")
+                .with_creator("作者2")
+                .add_nav(nav)
+                .add_nav(
+                    EpubNav::default()
+                        .with_title("3.")
+                        .with_file_name("2/2.xhtml"),
+                )
+                .add_chapter(
+                    EpubHtml::default()
+                        .with_file_name("2/1.xhtml")
+                        .with_title("333.")
+                        .with_data(b"<p>333.</p>".to_vec()),
+                )
+                .add_chapter(
+                    EpubHtml::default()
+                        .with_file_name("2/2.xhtml")
+                        .with_title("2.")
+                        .with_data(b"<p>2.</p>".to_vec()),
+                );
+            let mut book2 = builder.book().unwrap();
+
+            let mut builder = EpubBuilder::default();
+            let (mut builder, len, a_len) = add_into_epub(builder, &mut book1, 0, 0,0).unwrap();
+
+            let (mut builder, len, a_len) = add_into_epub(builder, &mut book2, len, a_len,0).unwrap();
+
+            let b = builder.book().unwrap();
+
+            println!("{:?}", b.nav());
+            println!("{:?}", b.chapters());
+
+            assert_eq!(
+                b.nav()[0].file_name(),
+                b.chapters().next().unwrap().file_name()
+            );
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     use crate::{
         adapter::core::convert_epub_html_img,
         common::IError,
-        epub::core::EpubReaderTrait,
         mobi::core::MobiAssets,
-        prelude::{read_from_file, EpubBuilder, EpubHtml, EpubWriter, MobiReader, MobiWriter},
+        prelude::{EpubBuilder, EpubHtml, EpubWriter, MobiReader, MobiWriter},
     };
     use std::{borrow::Cow, io::Read};
 

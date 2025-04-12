@@ -55,7 +55,8 @@ mod commands {
             NavScanner,
             GetImage,
             GetChapter,
-            FormatConvert
+            FormatConvert,
+            Concat
         );
     }
     pub(crate) mod mobi {

@@ -211,3 +211,35 @@ pub(crate) fn time_format() -> String {
 
     time_display(time)
 }
+
+pub(crate) fn get_media_type(file_name: &str) -> String {
+    let f = file_name.to_lowercase();
+
+    let mut types = std::collections::HashMap::new();
+    types.insert(".gif", String::from("image/gif"));
+    types.insert(".jpg", String::from("image/jpeg"));
+    types.insert(".jpeg", String::from("image/jpeg"));
+    types.insert(".png", String::from("image/png"));
+    types.insert(".svg", String::from("image/svg+xml"));
+    types.insert(".webp", String::from("image/webp"));
+    types.insert(".mp3", String::from("audio/mpeg"));
+    types.insert(".mp4", String::from("audio/mp4"));
+    types.insert(".css", String::from("text/css"));
+    types.insert(".ttf", String::from("application/font-sfnt"));
+    types.insert(".oft", String::from("application/font-sfnt"));
+    types.insert(".woff", String::from("application/font-woff"));
+    types.insert(".woff", String::from("font/woff2"));
+    types.insert(".xhtml", String::from("application/xhtml+xml"));
+    types.insert(".js", String::from("application/javascript"));
+    types.insert(".opf", String::from("application/x-dtbncx+xml"));
+    let x: &[_] = &['.'];
+    if let Some(index) = f.rfind(x) {
+        let sub = &f[index..f.len()];
+        return match types.get(&sub) {
+            Some(t) => String::from(t),
+            None => String::new(),
+        };
+    };
+
+    String::new()
+}
