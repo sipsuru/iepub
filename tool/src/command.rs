@@ -147,6 +147,21 @@ pub(crate) mod epub {
                     ),
                     OptionDef::create("out", "输出文件位置", OptionType::String, true),
                     OptionDef::create("skip", "跳过指定目录数", OptionType::String, false),
+                    OptionDef::create("cover", "封面图片", OptionType::String, false),
+                    OptionDef::create("title", "标题", OptionType::String, false),
+                    OptionDef::create("author", "作者", OptionType::String, false),
+                    OptionDef::create("isbn", "isbn", OptionType::String, false),
+                    OptionDef::create("publisher", "出版社", OptionType::String, false),
+                    OptionDef::create(
+                        "date",
+                        "出版日期，格式为:2024-06-28T03:07:07UTC",
+                        OptionType::String,
+                        false,
+                    ),
+                    OptionDef::create("desc", "简介", OptionType::String, false),
+                    OptionDef::create("format", "format", OptionType::String, false),
+                    OptionDef::create("subject", "subject", OptionType::String, false),
+                    OptionDef::create("contributor", "contributor", OptionType::String, false),
                 ],
             }
         },
@@ -164,6 +179,53 @@ pub(crate) mod epub {
                 if let Some(v) = book.creator() {
                     builder = builder.with_creator(v);
                 }
+                if let Some(v) = book.description() {
+                    builder = builder.with_description(v);
+                }
+                if let Some(v) = book.publisher() {
+                    builder = builder.with_publisher(v);
+                }
+                builder = builder.with_title(book.title());
+                if let Some(v) = book.date() {
+                    builder = builder.with_date(v);
+                }
+                if let Some(v) = book.contributor() {
+                    builder = builder.with_contributor(v);
+                }
+                if let Some(v) = book.format() {
+                    builder = builder.with_format(v);
+                }
+                if let Some(v) = book.subject() {
+                    builder = builder.with_subject(v);
+                }
+
+                if let Some(c) = book.cover_mut() {
+                    let f = c.file_name().to_string();
+                    if let Some(v) = c.data() {
+                        builder = builder.cover(f.as_str(), v.to_vec());
+                    }
+                }
+
+                for ele in opts {
+                    if ele.value.as_ref().is_none() {
+                        continue;
+                    }
+                    let v = ele.value.as_ref().unwrap().as_str();
+                    match ele.key.as_str() {
+                        "title" => builder = builder.with_title(v),
+                        "author" => builder = builder.with_creator(v),
+                        "isbn" => builder = builder.with_identifier(v),
+                        "publisher" => builder = builder.with_publisher(v),
+                        "date" => builder = builder.with_date(v),
+                        "desc" => builder = builder.with_description(v),
+                        "format" => builder = builder.with_format(v),
+                        "subject" => builder = builder.with_subject(v),
+                        "contributor" => builder = builder.with_contributor(v),
+                        "cover"=> builder = builder.cover("image/cover.png", std::fs::read(v).expect("read cover error")),
+                        _ => {}
+                    }
+                }
+
                 if let Some(bs) = opts
                     .iter()
                     .find(|f| f.key == "child")
