@@ -2,7 +2,7 @@
 //! 不需要访问文件系统，支持相对和绝对路径
 //!
 #[derive(Clone)]
-pub(crate) struct Path {
+pub struct Path {
     /// 逐级路径
     paths: Vec<String>,
     /// home目录
@@ -60,6 +60,24 @@ impl Path {
         s.paths.pop();
         s
     }
+
+    /// 从当前路径出发，获取能够指向target的路径
+    /// 例如当前路径是 1/2，需要访问 4/5.png 输出应该是 ../../4/5.png
+    /// 
+    /// # Warn
+    /// 当前路径应该是一个目录，且不能以 / 结尾
+    pub fn releative(&self,target:&str)->String{
+        // 首先往上走到根目录，然后再往下，如果没有分叉就不添加路径
+
+        let mut target = Self::system(target);
+        let mut out = Vec::new();
+
+        out.append(&mut vec!["..".to_string(); self.paths.len()]);
+        out.append(&mut target.paths);
+
+
+        out.join(&self.sep)
+    }
 }
 
 #[cfg(test)]
@@ -82,5 +100,15 @@ mod tests {
         path = path.join("../1");
 
         assert_eq!("1", path.to_str());
+    }
+
+    #[test]
+    fn test_releative_path(){
+
+        assert_eq!("../../4/5.png",Path::system("1/2").releative("4/5.png"));
+        assert_eq!("../../4/5.png",Path::system("4/2").releative("4/5.png"));
+        assert_eq!("../../4/5/6.png",Path::system("4/2").releative("4/5/6.png"));
+        assert_eq!("../4/5/6.png",Path::system("2").releative("4/5/6.png"));
+
     }
 }

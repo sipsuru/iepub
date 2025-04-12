@@ -79,21 +79,142 @@ fn create_dir(path: &str) {
     }
 }
 
+enum OwnBook {
+    EPUB(EpubBook),
+    MOBI(MobiBook),
+}
+
+fn read_book(file: &str) -> IResult<OwnBook> {
+    msg!("reading file {}", file);
+    if std::fs::File::open(file)
+        .map_err(|_| false)
+        .and_then(|mut f| iepub::prelude::check::is_epub(&mut f).map_err(|_| false))
+        .unwrap_or(false)
+    {
+        read_from_file(file).map(|f| OwnBook::EPUB(f))
+    } else if std::fs::File::open(file)
+        .map_err(|_| false)
+        .and_then(|mut f| iepub::prelude::check::is_mobi(&mut f).map_err(|_| false))
+        .unwrap_or(false)
+    {
+        let f = std::fs::File::open(file)?;
+        iepub::prelude::MobiReader::new(f)
+            .and_then(|mut f| f.load())
+            .map(|f| OwnBook::MOBI(f))
+    } else {
+        Err(IError::UnsupportedArchive("不支持的格式"))
+    }
+}
+
 pub(crate) mod epub {
     use crate::command::get_single_input;
     use crate::command::is_overiade;
     use crate::command::write_file;
     use crate::exec_err;
     use crate::Book;
+    use iepub::prelude::adapter::add_into_epub;
     use iepub::prelude::adapter::epub_to_mobi;
     use iepub::prelude::appender::write_metadata;
+    use iepub::prelude::read_from_file;
+    use iepub::prelude::EpubBook;
+    use iepub::prelude::EpubBuilder;
     use iepub::prelude::EpubNav;
+    use iepub::prelude::IResult;
+    use iepub::prelude::MobiBook;
     use iepub::prelude::MobiWriter;
 
     use crate::{
         arg::{self, ArgOption, CommandOptionDef, OptionDef, OptionType},
         msg, Command,
     };
+
+    use super::read_book;
+    use super::OwnBook;
+    create_command!(
+        Concat,
+        "concat",
+        {
+            arg::CommandOptionDef {
+                command: "concat".to_string(),
+                support_args: 0,
+                desc: "合并，基础信息以第一本为准".to_string(),
+                opts: vec![
+                    OptionDef::create(
+                        "child",
+                        "其他电子书，不必包括-i参数对应的电子书",
+                        OptionType::Array,
+                        true,
+                    ),
+                    OptionDef::create("out", "输出文件位置", OptionType::String, true),
+                    OptionDef::create("skip", "跳过指定目录数", OptionType::String, false),
+                ],
+            }
+        },
+        fn exec(
+            &self,
+            book: &mut Book,
+            global_opts: &[ArgOption],
+            opts: &[ArgOption],
+            _args: &[String],
+        ) {
+            if let Book::EPUB(book) = book {
+                let mut builder = EpubBuilder::new()
+                    .with_title(book.title())
+                    .custome_nav(true);
+                if let Some(v) = book.creator() {
+                    builder = builder.with_creator(v);
+                }
+                if let Some(bs) = opts
+                    .iter()
+                    .find(|f| f.key == "child")
+                    .and_then(|f| f.values.clone())
+                {
+                    let skip = opts
+                        .iter()
+                        .find(|f| f.key == "skip")
+                        .and_then(|f| f.value.clone())
+                        .unwrap_or("0".to_string())
+                        .parse()
+                        .unwrap();
+
+                    let (mut builder, mut len, mut assets_len) =
+                        add_into_epub(builder, book, 0, 0, skip).unwrap();
+
+                    for ele in bs {
+                        let f = read_book(ele.as_str()).unwrap();
+                        match f {
+                            OwnBook::EPUB(mut epub_book) => {
+                                let v =
+                                    add_into_epub(builder, &mut epub_book, len, assets_len, skip)
+                                        .unwrap();
+                                builder = v.0;
+                                len = v.1;
+                                assets_len = v.2;
+                            }
+                            OwnBook::MOBI(mobi_book) => todo!(),
+                        }
+                    }
+                    if let Some(path) = opts
+                        .iter()
+                        .find(|f| f.key == "out")
+                        .and_then(|f| f.value.clone())
+                    {
+                        if std::path::Path::new(&path).exists()
+                            && !is_overiade(global_opts, opts)
+                            && get_single_input("Override file？(y/n)")
+                                .unwrap()
+                                .to_lowercase()
+                                != "y"
+                        {
+                            return;
+                        }
+                        msg!("writing book to {}", path);
+                        builder.file(path.as_str()).unwrap();
+                    }
+                }
+            }
+        }
+    );
 
     create_command!(
         BookInfoGetter,
