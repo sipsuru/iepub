@@ -604,6 +604,7 @@ impl<T: Read + Seek> EpubReaderTrait for EpubReader<T> {
                             let content = read_from_zip!(reader, t.as_str());
 
                             read_nav_xml(content.as_str(), book)?;
+                            book.update_chapter_title();
                         }
                     }
                 }
@@ -614,14 +615,20 @@ impl<T: Read + Seek> EpubReaderTrait for EpubReader<T> {
     }
 
     fn read_file(&mut self, file_name: &str) -> IResult<Vec<u8>> {
-        let mut file = invalid!(self.inner.by_name(file_name), "not exist");
+        let mut file = self
+            .inner
+            .by_name(file_name)
+            .or(Err(IError::FileNotFound))?;
         let mut content = Vec::new();
         invalid!(file.read_to_end(&mut content), "read err");
         Ok(content)
     }
 
     fn read_string(&mut self, file_name: &str) -> IResult<String> {
-        let mut file = invalid!(self.inner.by_name(file_name), "not exist");
+        let mut file = self
+            .inner
+            .by_name(file_name)
+            .or(Err(IError::FileNotFound))?;
         let mut content = String::new();
         invalid!(file.read_to_string(&mut content), "read err");
         Ok(content)
@@ -805,22 +812,28 @@ html
     }
 
     #[test]
-    fn test_tox_ncc_path() {
+    fn test_no_oebps_prefix_path() {
         // 测试不同的toc.ncx文件位置
+        // 相关文件没有存放在 OEBPS 目录内
         let name = "epub-book.epub";
         download_file(
             name,
             "https://github.com/user-attachments/files/19544787/epub-book.epub.zip",
         );
 
-        let book = read_from_file(name).unwrap();
+        let mut book = read_from_file(name).unwrap();
 
         let nav = book.nav();
 
         assert_ne!(0, nav.len());
-        // println!("{:?}",book.chapters());
-        // println!("{:?}",book.nav());
-        // println!("{:?}",book.assets());
+        assert_ne!("", nav[0].title());
+        let mut chap = book.chapters();
+        assert!(chap.next().is_some());
+        chap.next();
+        chap.next();
+
+        assert_ne!("", chap.next().unwrap().title());
+        assert_ne!(None, book.chapters_mut().next().unwrap().data());
     }
 
 }
