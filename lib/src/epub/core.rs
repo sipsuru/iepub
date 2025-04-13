@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use super::html::{get_html_info, to_html};
 
-use crate::common::IResult;
+use crate::common::{IError, IResult};
 use crate::epub::common::LinkRel;
 use crate::epub_base_field;
 
@@ -57,18 +57,26 @@ impl EpubHtml {
     pub fn data(&mut self) -> Option<&[u8]> {
         let mut f = String::from(self._file_name.as_str());
         if self._data.is_none() && self.reader.is_some() && !f.is_empty() {
-            // 可读
-            if !f.starts_with(common::EPUB) {
-                f = format!("{}{}", common::EPUB, f);
-            }
+            loop {
+                let s = self.reader.as_mut().unwrap();
 
-            let s = self.reader.as_mut().unwrap();
+                let d = (*s.borrow_mut()).read_string(f.as_str());
+                match d {
+                    Ok(v) => {
+                        let _ = get_html_info(v.as_str(), self);
+                        break;
+                    }
+                    Err(IError::FileNotFound) => {
+                        // 添加 前缀再次读取
 
-            let d = (*s.borrow_mut()).read_string(f.as_str());
-            // let d = self.reader.as_mut().unwrap().read_string(f.as_str());
-            if let Ok(v) = d {
-                let _ = get_html_info(v.as_str(), self);
-                // self.set_data(v);
+                        if !f.starts_with(common::EPUB) {
+                            f = format!("{}{}", common::EPUB, f);
+                        }
+                    }
+                    Err(e) => {
+                        break;
+                    }
+                }
             }
         }
         self._data.as_deref()
@@ -512,6 +520,15 @@ impl EpubBook {
 
     pub fn cover_mut(&mut self) -> Option<&mut EpubAssets> {
         self.cover.as_mut()
+    }
+
+    /// 读取完成后更新文章标题
+    pub(crate) fn update_chapter_title(&mut self){
+        for ele in &mut self.chapters {
+            if let Some(v) = self.nav.iter().find(|f|f.file_name() == ele.file_name()) {
+                ele.set_title(v.title());
+            }
+        }
     }
 }
 
