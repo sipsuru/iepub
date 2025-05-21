@@ -61,7 +61,7 @@ let data2 = chap.data();// 第二次不会再读取文件了
 
 #### 自定义目录
 
-- 如果需要自定义目录，需要调用`custome_nav(false)`,然后调用`add_nav()`添加目录
+- 如果需要自定义目录，需要调用`custome_nav(true)`,然后调用`add_nav()`添加目录
 
 #### 自动生成封面
 
@@ -104,7 +104,7 @@ let v = MobiBuilder::default()
 
 #### 自定义目录
 
-- 如果需要自定义目录，需要调用`custome_nav(false)`,然后调用`add_nav()`添加目录
+- 如果需要自定义目录，需要调用`custome_nav(true)`,然后调用`add_nav()`添加目录
 - 为了关联目录nav和章节chap，需要调用`MobiNav#set_chap_id()`指明指向的章节；如果是类似卷首目录，指向最接近的章节即可
 
 #### 图片
