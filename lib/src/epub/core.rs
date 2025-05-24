@@ -55,24 +55,33 @@ impl Debug for EpubHtml {
 
 impl EpubHtml {
     pub fn data(&mut self) -> Option<&[u8]> {
+        let (id, origin) = if let Some(index) = self._file_name.find(|f| f == '#') {
+            (
+                Some(&self._file_name[(index + 1)..]),
+                self._file_name[0..index].to_string(),
+            )
+        } else {
+            (None, self.file_name().to_string())
+        };
         let mut f = String::from(self._file_name.as_str());
+        let prefixs = vec!["", common::EPUB, "EPUB/"];
         if self._data.is_none() && self.reader.is_some() && !f.is_empty() {
-            loop {
+            for prefix in prefixs.iter() {
+                // 添加 前缀再次读取
+                f = format!("{prefix}{origin}");
                 let s = self.reader.as_mut().unwrap();
-
                 let d = (*s.borrow_mut()).read_string(f.as_str());
                 match d {
                     Ok(v) => {
-                        let _ = get_html_info(v.as_str(), self);
+                        if let Ok((title, data)) = get_html_info(v.as_str(), id) {
+                            if !title.is_empty() {
+                                self.set_title(&title);
+                            }
+                            self.set_data(data);
+                        }
                         break;
                     }
-                    Err(IError::FileNotFound) => {
-                        // 添加 前缀再次读取
-
-                        if !f.starts_with(common::EPUB) {
-                            f = format!("{}{}", common::EPUB, f);
-                        }
-                    }
+                    Err(IError::FileNotFound) => {}
                     Err(e) => {
                         break;
                     }
@@ -338,6 +347,8 @@ pub struct EpubBook {
     cover: Option<EpubAssets>,
     /// 处于读模式
     reader: Option<Rc<RefCell<Box<dyn EpubReaderTrait>>>>,
+    /// PREFIX
+    pub(crate) prefix: String,
 }
 
 impl Display for EpubBook {
@@ -494,15 +505,9 @@ impl EpubBook {
     /// [file_name] 不需要带有 EPUB 目录
     ///
     pub fn get_chapter(&mut self, file_name: &str) -> Option<&mut EpubHtml> {
-        self.chapters
-            .iter_mut()
-            .find(|s| s.file_name() == file_name)
-        // .map(|f| {
-        //     if let Some(r) = &self.reader {
-        //         f.reader = Some(Rc::clone(r));
-        //     }
-        //     f
-        // })
+        self.chapters.iter_mut().find(|s| {
+            return s.file_name() == file_name;
+        })
     }
 
     /// 获取目录
@@ -522,16 +527,57 @@ impl EpubBook {
         self.cover.as_mut()
     }
 
-    /// 读取完成后更新文章标题
-    pub(crate) fn update_chapter_title(&mut self){
-        for ele in &mut self.chapters {
-            if let Some(v) = self.nav.iter().find(|f|f.file_name() == ele.file_name()) {
+    /// 读取完成后更新文章
+    pub(crate) fn update_chapter(&mut self) {
+        let f = flatten_nav(&self.nav);
+
+        let mut map = HashMap::new();
+        for (index, ele) in self.chapters.iter_mut().enumerate() {
+            if let Some(v) = self.nav.iter().find(|f| f.file_name() == ele.file_name()) {
                 ele.set_title(v.title());
+            } else {
+                // 如果 chapter 在 nav中不存在，有两种情况，一是cover之类的本身就不存在，二是epub3，在一个文件里使用id分章节
+                let id_nav: Vec<&&EpubNav> = f
+                    .iter()
+                    .filter(|f| {
+                        f.file_name().contains("#") && f.file_name().starts_with(ele.file_name())
+                    })
+                    .collect();
+                if !id_nav.is_empty() {
+                    // epub3,去除该 chap,重新填入
+                    map.insert(index, id_nav);
+                }
+            }
+        }
+        // 修正章节
+        let mut offset = 0;
+        for (index, nav) in map {
+            for ele in nav {
+                let mut chap = EpubHtml::default()
+                    .with_title(ele.title())
+                    .with_file_name(ele.file_name());
+                if let Some(r) = &self.reader {
+                    chap.reader = Some(Rc::clone(r));
+                }
+                self.chapters.insert(index + offset, chap);
+                offset = offset + 1;
             }
         }
     }
 }
 
+/// 获取最低层级的目录
+fn flatten_nav(nav: &[EpubNav]) -> Vec<&EpubNav> {
+    let mut n = Vec::new();
+    for ele in nav {
+        if ele.child.is_empty() {
+            n.push(ele);
+        } else {
+            n.append(&mut flatten_nav(&ele.child));
+        }
+    }
+    n
+}
 pub(crate) trait EpubReaderTrait {
     fn read(&mut self, book: &mut EpubBook) -> IResult<()>;
     ///

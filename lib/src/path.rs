@@ -48,6 +48,19 @@ impl Path {
         }
         s
     }
+
+    /// 当前目录有多少级
+    pub fn level_count(&self) -> usize {
+        #[cfg(target_os = "windows")]
+        let sep = "\\";
+        #[cfg(not(target_os = "windows"))]
+        let sep = "/";
+        self.paths
+            .iter()
+            .filter(|f| !f.trim().is_empty() && f.as_str() != sep)
+            .count()
+    }
+
     pub fn to_str(&self) -> String {
         // if self.is_absolute {
         //     format!("/{}",self.paths.join(&self.sep))
@@ -63,10 +76,10 @@ impl Path {
 
     /// 从当前路径出发，获取能够指向target的路径
     /// 例如当前路径是 1/2，需要访问 4/5.png 输出应该是 ../../4/5.png
-    /// 
+    ///
     /// # Warn
     /// 当前路径应该是一个目录，且不能以 / 结尾
-    pub fn releative(&self,target:&str)->String{
+    pub fn releative(&self, target: &str) -> String {
         // 首先往上走到根目录，然后再往下，如果没有分叉就不添加路径
 
         let mut target = Self::system(target);
@@ -74,7 +87,6 @@ impl Path {
 
         out.append(&mut vec!["..".to_string(); self.paths.len()]);
         out.append(&mut target.paths);
-
 
         out.join(&self.sep)
     }
@@ -90,10 +102,14 @@ mod tests {
         path = path.join("1");
 
         assert_eq!("/ok/1", path.to_str());
+        assert_eq!(2, path.level_count());
 
         let mut path = Path::system("/ok");
+        assert_eq!(1, path.level_count());
+
         path = path.join("../1");
 
+        assert_eq!(1, path.level_count());
         assert_eq!("/1", path.to_str());
 
         let mut path = Path::system("res");
@@ -103,12 +119,13 @@ mod tests {
     }
 
     #[test]
-    fn test_releative_path(){
-
-        assert_eq!("../../4/5.png",Path::system("1/2").releative("4/5.png"));
-        assert_eq!("../../4/5.png",Path::system("4/2").releative("4/5.png"));
-        assert_eq!("../../4/5/6.png",Path::system("4/2").releative("4/5/6.png"));
-        assert_eq!("../4/5/6.png",Path::system("2").releative("4/5/6.png"));
-
+    fn test_releative_path() {
+        assert_eq!("../../4/5.png", Path::system("1/2").releative("4/5.png"));
+        assert_eq!("../../4/5.png", Path::system("4/2").releative("4/5.png"));
+        assert_eq!(
+            "../../4/5/6.png",
+            Path::system("4/2").releative("4/5/6.png")
+        );
+        assert_eq!("../4/5/6.png", Path::system("2").releative("4/5/6.png"));
     }
 }

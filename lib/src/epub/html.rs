@@ -334,16 +334,24 @@ pub(crate) fn to_opf(book: &EpubBook, generator: &str) -> String {
 ///
 /// 解析html获取相关数据
 ///
-pub(crate) fn get_html_info(html: &str, chap: &mut EpubHtml) -> IResult<()> {
+/// # Returns
+///
+/// 第一个是title
+/// 第二个是正文
+///
+pub(crate) fn get_html_info(html: &str, id: Option<&str>) -> IResult<(String, Vec<u8>)> {
     use quick_xml::reader::Reader;
+    let mut title = String::new();
+    let mut content = Vec::new();
     let mut reader = Reader::from_str(html);
-    // reader.config_mut().trim_text(true);
+    reader.config_mut().trim_text(true);
     let mut buf = Vec::new();
     let mut parent: Vec<&str> = Vec::new();
+    let mut body_data: Option<Vec<u8>> = None;
     loop {
         match reader.read_event_into(&mut buf) {
             Ok(Event::Eof) => {
-                return Ok(());
+                break;
             }
             Err(e) => {
                 return Err(IError::Xml(e));
@@ -364,12 +372,13 @@ pub(crate) fn get_html_info(html: &str, chap: &mut EpubHtml) -> IResult<()> {
                     }
                 }
                 b"body" => {
-                    let m = reader
+                    body_data = reader
                         .read_text(body.to_end().to_owned().name())
-                        .map(|f| f.to_string())
-                        .map_err(IError::Xml);
-                    if m.is_ok() {
-                        chap.set_data(m.unwrap().into_bytes());
+                        .map(|f| f.as_bytes().to_vec())
+                        .map_err(IError::Xml)
+                        .ok();
+                    if body_data.is_some() {
+                        break;
                     }
                 }
                 _ => {}
@@ -400,19 +409,79 @@ pub(crate) fn get_html_info(html: &str, chap: &mut EpubHtml) -> IResult<()> {
             Ok(Event::Text(e)) => {
                 if parent.len() == 3 && parent[2] == "title" {
                     let v = String::from_utf8(e.into_inner().to_vec()).map_err(IError::Utf8)?;
-                    chap.set_title(v.as_str().trim());
+                    title.push_str(v.trim());
                 }
             }
             _ => {}
         }
     }
+    if let Some(mut b) = body_data {
+        if let Some(id) = id {
+            // 重新读取数据
+            content.append(&mut get_section_from_html(
+                String::from_utf8(b).unwrap().as_str(),
+                id,
+            )?);
+        } else {
+            content.append(&mut b);
+        }
+    }
+    Ok((title, content))
+}
+
+/// epub3 将所有正文放到一个文件里，不同的section代表不同的章节
+fn get_section_from_html(body: &str, id: &str) -> IResult<Vec<u8>> {
+    use quick_xml::reader::Reader;
+
+    let mut content = Vec::new();
+    let mut reader = Reader::from_str(body);
+    // reader.config_mut().trim_text(true);
+    let mut buf = Vec::new();
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Eof) => {
+                break;
+            }
+            Err(e) => {
+                return Err(IError::Xml(e));
+            }
+            Ok(Event::Start(body)) => match body.name().as_ref() {
+                b"section" => {
+                    if body
+                        .try_get_attribute("id")
+                        .map_err(|_e| IError::Unknown)
+                        .and_then(|f| f.ok_or(IError::Unknown))
+                        .and_then(|f| f.unescape_value().map_err(|e| IError::Xml(e)))
+                        .map(|f| f.to_string())
+                        .map(|f| f == id)
+                        .unwrap_or(false)
+                    {
+                        let v = reader
+                            .read_text(body.to_end().to_owned().name())
+                            .map(|f| f.as_bytes().to_vec())
+                            .map_err(IError::Xml)
+                            .ok();
+
+                        if let Some(mut v) = v {
+                            content.append(&mut v);
+                            break;
+                        }
+                    }
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+    }
+    return Ok(content);
 }
 
 #[cfg(test)]
 mod test {
 
-    use super::{get_html_info, get_media_type, to_html, to_toc_xml};
+    use super::{get_html_info, get_media_type, get_section_from_html, to_html, to_toc_xml};
     use super::{to_nav_html, to_opf};
+    use crate::common::tests::download_zip_file;
     use crate::prelude::*;
 
     #[test]
@@ -581,26 +650,47 @@ ok
 
     #[test]
     fn test_get_html_info() {
-        let mut book = EpubHtml::default();
-
-        get_html_info(
+        let (title, data) = get_html_info(
             r"<html>
     <head><title> 测试标题 </title></head>
     <body>
     <p>段落1</p>ok
     </body>
          </html>",
-            &mut book,
+            None,
         )
         .unwrap();
 
-        assert_eq!(r"测试标题", book.title());
+        assert_eq!(r"测试标题", title);
 
         assert_eq!(
             r"
     <p>段落1</p>ok
     ",
-            String::from_utf8(book.data().unwrap().to_vec()).unwrap()
+            String::from_utf8(data).unwrap()
         );
+
+        // 测试 epub3 格式
+        let name = "EPUB/s04.xhtml";
+        download_zip_file(name, "https://github.com/IDPF/epub3-samples/releases/download/20230704/childrens-literature.epub");
+        let html = std::fs::read_to_string("EPUB/s04.xhtml").unwrap();
+
+        let (title, data) = get_html_info(html.as_str(), Some("pgepubid00495")).unwrap();
+
+        assert_eq!(3324, data.len());
+
+        // assert_ne!(None, chap.data());
+        // assert_ne!(0, chap.data().unwrap().len());
+    }
+
+    #[test]
+    fn test_get_section_from_html() {
+        let name = "EPUB/s04.xhtml";
+        download_zip_file(name, "https://github.com/IDPF/epub3-samples/releases/download/20230704/childrens-literature.epub");
+        let html = std::fs::read_to_string("EPUB/s04.xhtml").unwrap();
+
+        // let chap =
+
+        // get_section_from_html(body, id, chap)
     }
 }

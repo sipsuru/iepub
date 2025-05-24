@@ -45,12 +45,6 @@ let mut book = read_from_vec(data);
 // 从文件读取
 let mut bbook = read_from_file("epub格式文件绝对路径");
 
-// 注意，默认情况下读取采用懒加载，上述代码只完成了基础结构读取，包括目录，文件列表等等，具体某个章节或者资源的数据将会推迟到第一次调用`data()`方法时读取
-// 例如
-
-let mut chap = book.get_chapter("0.xhtml").unwrap();
-let data = chap.data();// 此时将会实际读取并解析文件
-let data2 = chap.data();// 第二次不会再读取文件了
 ```
 
 ### 注意事项
