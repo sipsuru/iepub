@@ -243,3 +243,34 @@ pub(crate) fn get_media_type(file_name: &str) -> String {
 
     String::new()
 }
+
+#[cfg(test)]
+pub(crate) mod tests {
+
+
+    pub fn download_zip_file(name: &str, url: &str) {
+        use super::IError;
+        use std::{borrow::Cow, io::Read};
+
+        if std::fs::metadata(name).is_err() {
+            // 下载并解压
+
+            let mut zip = tinyget::get(url)
+                .send()
+                .map(|v| v.as_bytes().to_vec())
+                .map_err(|e| IError::InvalidArchive(Cow::from("download fail")))
+                .and_then(|f| {
+                    zip::ZipArchive::new(std::io::Cursor::new(f))
+                        .map_err(|e| IError::InvalidArchive(Cow::from("download fail")))
+                })
+                .unwrap();
+            let mut zip = zip.by_name(name).unwrap();
+            let mut v = Vec::new();
+            zip.read_to_end(&mut v).unwrap();
+            if name.contains("/") {
+                std::fs::create_dir_all(crate::path::Path::system(name).pop().to_str()).unwrap();
+            }
+            std::fs::write(name, &mut v).unwrap();
+        }
+    }
+}
