@@ -365,34 +365,14 @@ impl<T: Read + Seek> MobiReader<T> {
 
 #[cfg(test)]
 mod tests {
-    use std::{borrow::Cow, io::Read};
+    use crate::mobi::reader::MobiReader;
+    use crate::common::tests::download_zip_file;
 
-    use crate::{common::IError, mobi::reader::MobiReader};
-
-    fn download_file(name: &str, url: &str) {
-        if std::fs::metadata(name).is_err() {
-            // 下载并解压
-
-            let mut zip = tinyget::get(url)
-                .send()
-                .map(|v| v.as_bytes().to_vec())
-                .map_err(|e| IError::InvalidArchive(Cow::from("download fail")))
-                .and_then(|f| {
-                    zip::ZipArchive::new(std::io::Cursor::new(f))
-                        .map_err(|e| IError::InvalidArchive(Cow::from("download fail")))
-                })
-                .unwrap();
-            let mut zip = zip.by_name(name).unwrap();
-            let mut v = Vec::new();
-            zip.read_to_end(&mut v).unwrap();
-            std::fs::write(name, &mut v).unwrap();
-        }
-    }
 
     #[test]
     fn test_load() {
         let name = "3252.mobi";
-        download_file(
+        download_zip_file(
             name,
             "https://github.com/user-attachments/files/18904584/3252.zip",
         );
@@ -428,7 +408,7 @@ mod tests {
     #[cfg(feature = "no_nav")]
     fn test_no_nav() {
         let name = "convert.mobi";
-        download_file(
+        download_zip_file(
             name,
             "https://github.com/user-attachments/files/18818424/convert.mobi.zip",
         );
@@ -451,7 +431,7 @@ mod tests {
     )]
     fn test_no_nav() {
         let name = "convert.mobi";
-        download_file(
+        download_zip_file(
             name,
             "https://github.com/user-attachments/files/18818424/convert.mobi.zip",
         );
