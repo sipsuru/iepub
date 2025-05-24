@@ -546,8 +546,6 @@ fn read_nav_xml(xml: &str, book: &mut EpubBook) -> IResult<()> {
 }
 #[derive(Debug, Clone)]
 struct EpubReader<T> {
-    /// 是否懒加载
-    lazy: bool,
     inner: zip::ZipArchive<T>,
 }
 
@@ -563,10 +561,7 @@ struct EpubReader<T> {
 impl<T: Read + Seek> EpubReader<T> {
     pub fn new(value: T) -> IResult<Self> {
         let r = zip::ZipArchive::new(value)?;
-        Ok(EpubReader {
-            inner: r,
-            lazy: true,
-        })
+        Ok(EpubReader { inner: r })
     }
 }
 impl<T: Read + Seek> EpubReaderTrait for EpubReader<T> {
@@ -586,8 +581,11 @@ impl<T: Read + Seek> EpubReaderTrait for EpubReader<T> {
             let content = read_from_zip!(reader, "META-INF/container.xml");
 
             let opf_path = get_opf_location(content.as_str());
-
             if let Ok(path) = opf_path {
+                let pp = crate::path::Path::system(path.as_str());
+                if pp.level_count() != 1 {
+                    book.prefix.push_str(pp.pop().to_str().as_str());
+                }
                 let opf = read_from_zip!(reader, path.as_str());
 
                 read_opf_xml(opf.as_str(), book)?;
@@ -604,7 +602,7 @@ impl<T: Read + Seek> EpubReaderTrait for EpubReader<T> {
                             let content = read_from_zip!(reader, t.as_str());
 
                             read_nav_xml(content.as_str(), book)?;
-                            book.update_chapter_title();
+                            book.update_chapter();
                         }
                     }
                 }
@@ -790,33 +788,13 @@ html
         assert_eq!("", n[0].child()[0].title());
     }
 
-    fn download_file(name: &str, url: &str) {
-        if std::fs::metadata(name).is_err() {
-            // 下载并解压
-
-            let mut zip = tinyget::get(url)
-                .send()
-                .map(|v| v.as_bytes().to_vec())
-                .map_err(|e| IError::InvalidArchive(std::borrow::Cow::from("download fail")))
-                .and_then(|f| {
-                    zip::ZipArchive::new(std::io::Cursor::new(f)).map_err(|e| {
-                        IError::InvalidArchive(std::borrow::Cow::from("download fail"))
-                    })
-                })
-                .unwrap();
-            let mut zip = zip.by_name(name).unwrap();
-            let mut v = Vec::new();
-            std::io::Read::read_to_end(&mut zip, &mut v).unwrap();
-            std::fs::write(name, &mut v).unwrap();
-        }
-    }
-
     #[test]
     fn test_no_oebps_prefix_path() {
+        use crate::common::tests::download_zip_file;
         // 测试不同的toc.ncx文件位置
         // 相关文件没有存放在 OEBPS 目录内
         let name = "epub-book.epub";
-        download_file(
+        download_zip_file(
             name,
             "https://github.com/user-attachments/files/19544787/epub-book.epub.zip",
         );
@@ -836,4 +814,39 @@ html
         assert_ne!(None, book.chapters_mut().next().unwrap().data());
     }
 
+    #[test]
+    fn test_read_epub3() {
+        let name = "epub3.epub";
+        let url =  "https://github.com/IDPF/epub3-samples/releases/download/20230704/childrens-literature.epub";
+
+        tinyget::get(url)
+            .send()
+            .map(|v| v.as_bytes().to_vec())
+            .map_err(|e| IError::InvalidArchive(std::borrow::Cow::from("download fail")))
+            .and_then(|f| std::fs::write(name, f).map_err(|e| IError::Io(e)))
+            .unwrap();
+
+        let mut book = read_from_file(name).unwrap();
+
+        let nav = book.nav();
+
+        assert_ne!(0, nav.len());
+        assert_ne!("", nav[0].title());
+        let mut chap = book.chapters_mut();
+
+        assert_eq!(75, chap.next().unwrap().data().unwrap().len());
+
+        // println!("{}", String::from_utf8( chap.next().unwrap().data().unwrap().to_vec()).unwrap());
+        chap.next();
+        chap.next();
+        assert_eq!(9343, chap.next().unwrap().data().unwrap().to_vec().len());
+
+        assert!(book.get_chapter("s04.xhtml#pgepubid00536").is_some());
+        // assert!(chap.next().is_some());
+        // chap.next();
+        // chap.next();
+
+        // assert_ne!("", chap.next().unwrap().title());
+        // assert_ne!(None, book.chapters_mut().next().unwrap().data());
+    }
 }
