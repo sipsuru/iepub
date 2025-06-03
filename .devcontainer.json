@@ -1,0 +1,16 @@
+{
+	"name": "iepub",
+	"build": {
+		"dockerfile": "Dockerfile.dev"
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"rust-lang.rust-analyzer",
+				"cweijan.epub-reader",
+				"vadimcn.vscode-lldb",
+				"swellaby.vscode-rust-test-adapter"
+			]
+		}
+	}
+}
