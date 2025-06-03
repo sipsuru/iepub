@@ -365,19 +365,18 @@ impl<T: Read + Seek> MobiReader<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::mobi::reader::MobiReader;
     use crate::common::tests::download_zip_file;
-
+    use crate::mobi::reader::MobiReader;
 
     #[test]
     fn test_load() {
         let name = "3252.mobi";
-        download_zip_file(
+
+        let path = std::env::current_dir().unwrap().join(download_zip_file(
             name,
             "https://github.com/user-attachments/files/18904584/3252.zip",
-        );
-
-        let path = std::env::current_dir().unwrap().join(name);
+        ));
+        println!("path = {}",path.display());
         let mut mobi =
             MobiReader::new(std::fs::File::open(path.to_str().unwrap()).unwrap()).unwrap();
 
@@ -431,12 +430,11 @@ mod tests {
     )]
     fn test_no_nav() {
         let name = "convert.mobi";
-        download_zip_file(
+
+        let path = std::env::current_dir().unwrap().join(download_zip_file(
             name,
             "https://github.com/user-attachments/files/18818424/convert.mobi.zip",
-        );
-
-        let path = std::env::current_dir().unwrap().join(name);
+        ));
         let mut mobi =
             MobiReader::new(std::fs::File::open(path.to_str().unwrap()).unwrap()).unwrap();
 

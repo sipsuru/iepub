@@ -265,11 +265,11 @@ pub(crate) mod tests {
         }
     }
 
-    pub fn download_zip_file(name: &str, url: &str) {
+    pub fn download_zip_file(name: &str, url: &str) -> String {
         use super::IError;
         use std::{borrow::Cow, io::Read};
-
-        if std::fs::metadata(name).is_err() {
+        let out = format!("../target/{name}");
+        if std::fs::metadata(&out).is_err() {
             // 下载并解压
 
             let mut zip = tinyget::get(url)
@@ -284,10 +284,13 @@ pub(crate) mod tests {
             let mut zip = zip.by_name(name).unwrap();
             let mut v = Vec::new();
             zip.read_to_end(&mut v).unwrap();
+
             if name.contains("/") {
-                std::fs::create_dir_all(crate::path::Path::system(name).pop().to_str()).unwrap();
+                std::fs::create_dir_all( std::path::Path::new(&out).parent().unwrap()).unwrap();
             }
-            std::fs::write(name, &mut v).unwrap();
-        }
+            std::fs::write(std::path::Path::new(&out), &mut v).unwrap();
+           
+        } 
+         out
     }
 }

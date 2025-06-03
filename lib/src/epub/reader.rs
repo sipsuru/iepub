@@ -931,12 +931,11 @@ html
         // 测试不同的toc.ncx文件位置
         // 相关文件没有存放在 OEBPS 目录内
         let name = "epub-book.epub";
-        download_zip_file(
+
+        let mut book = read_from_file(download_zip_file(
             name,
             "https://github.com/user-attachments/files/19544787/epub-book.epub.zip",
-        );
-
-        let mut book = read_from_file(name).unwrap();
+        ).as_str()).unwrap();
 
         let nav = book.nav();
 
@@ -953,15 +952,9 @@ html
 
     #[test]
     fn test_read_epub3() {
-        let name = "epub3.epub";
+        let name = "../target/epub3.epub";
         let url =  "https://github.com/IDPF/epub3-samples/releases/download/20230704/childrens-literature.epub";
-
-        tinyget::get(url)
-            .send()
-            .map(|v| v.as_bytes().to_vec())
-            .map_err(|e| IError::InvalidArchive(std::borrow::Cow::from("download fail")))
-            .and_then(|f| std::fs::write(name, f).map_err(|e| IError::Io(e)))
-            .unwrap();
+        download_epub_file(name, url);
 
         let mut book = read_from_file(name).unwrap();
 
