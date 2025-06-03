@@ -407,14 +407,12 @@ mod tests {
     #[cfg(feature = "no_nav")]
     fn test_no_nav() {
         let name = "convert.mobi";
-        download_zip_file(
+
+        let mut mobi =
+            MobiReader::new(std::fs::File::open(download_zip_file(
             name,
             "https://github.com/user-attachments/files/18818424/convert.mobi.zip",
-        );
-
-        let path = std::env::current_dir().unwrap().join(name);
-        let mut mobi =
-            MobiReader::new(std::fs::File::open(path.to_str().unwrap()).unwrap()).unwrap();
+        )).unwrap()).unwrap();
 
         let book = mobi.load().unwrap();
 
