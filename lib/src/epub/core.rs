@@ -1,16 +1,15 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display};
+use std::io::Write;
 use std::rc::Rc;
 use std::str::FromStr;
 
+use super::common::{self};
 use super::html::{get_html_info, to_html};
-
 use crate::common::{IError, IResult};
 use crate::epub::common::LinkRel;
 use crate::epub_base_field;
-
-use super::common;
 
 pub(crate) mod info {
     include!(concat!(env!("OUT_DIR"), "/version.rs"));
@@ -166,26 +165,47 @@ epub_base_field! {
 /// 例如css，字体，图片等
 ///
 #[derive(Default,Clone)]
-pub struct EpubAssets {}
+pub struct EpubAssets {
+    version:String,
+}
 }
 
 impl EpubAssets {
+    pub fn with_version(&mut self, version: &str) {
+        self.version.push_str(version);
+    }
+
     pub fn data(&mut self) -> Option<&[u8]> {
         let mut f = String::from(self._file_name.as_str());
         if self._data.is_none() && self.reader.is_some() && !f.is_empty() {
-            if !f.starts_with(common::EPUB) {
-                f = format!("{}{}", common::EPUB, f);
-            }
-            // 可读
             let s = self.reader.as_mut().unwrap();
-
-            let d = (*s.borrow_mut()).read_file(f.as_str());
-            // let d = self.reader.as_mut().unwrap().read_file(f);
-            if let Ok(v) = d {
-                self.set_data(v);
+            if self.version == "2.0" {
+                if !f.starts_with(common::EPUB) {
+                    f = format!("{}{}", common::EPUB, f);
+                }
+                let d = (*s.borrow_mut()).read_file(f.as_str());
+                if let Ok(v) = d {
+                    self.set_data(v);
+                }
+            } else {
+                if !f.starts_with(common::EPUB3) {
+                    f = format!("{}{}", common::EPUB3, f);
+                }
+                let d3 = (*s.borrow_mut()).read_file(f.as_str());
+                if let Ok(v3) = d3 {
+                    self.set_data(v3);
+                }
             }
         }
         self._data.as_deref()
+    }
+
+    pub fn write_to<W: Write>(&mut self, writer: &mut W) -> IResult<()> {
+        if let Some(data) = self.data() {
+            writer.write_all(&data)?;
+            writer.flush()?;
+        }
+        Ok(())
     }
 }
 
@@ -511,18 +531,18 @@ impl EpubBook {
             return s.file_name() == file_name;
         })
     }
+    pub fn set_version(&mut self, version: &str) {
+        self.version.clear();
+        self.version.push_str(version);
+    }
+
+    pub fn version(&mut self) -> &str {
+        self.version.as_ref()
+    }
 
     /// 获取目录
     pub fn nav(&self) -> &[EpubNav] {
         &self.nav
-    }
-
-    pub fn set_version(&mut self, version: String) {
-        self.version = version;
-    }
-
-    pub fn version(&self) -> &str {
-        self.version.as_ref()
     }
 
     pub fn set_cover(&mut self, cover: EpubAssets) {
@@ -574,6 +594,13 @@ impl EpubBook {
             }
         }
     }
+
+    pub(crate) fn update_assets(&mut self) {
+        let version = self.version().to_string();
+        for assets in self.assets_mut() {
+            assets.with_version(&version);
+        }
+    }
 }
 
 /// 获取最低层级的目录
@@ -604,7 +631,7 @@ pub(crate) trait EpubReaderTrait {
 #[cfg(test)]
 mod tests {
 
-    use crate::{epub::writer::EpubWriterTrait, prelude::*};
+    use crate::prelude::*;
 
     #[test]
     fn write_assets() {
@@ -637,6 +664,7 @@ mod tests {
 
         book.add_nav(n);
         book.add_nav(n1);
+        book.set_version("2.0");
         // 添加章节
         let mut chap = EpubHtml::default();
         chap.set_file_name("chaps/0.xhtml");
