@@ -178,22 +178,18 @@ impl EpubAssets {
     pub fn data(&mut self) -> Option<&[u8]> {
         let mut f = String::from(self._file_name.as_str());
         if self._data.is_none() && self.reader.is_some() && !f.is_empty() {
-            let s = self.reader.as_mut().unwrap();
-            if self.version == "2.0" {
-                if !f.starts_with(common::EPUB) {
-                    f = format!("{}{}", common::EPUB, f);
-                }
-                let d = (*s.borrow_mut()).read_file(f.as_str());
-                if let Ok(v) = d {
-                    self.set_data(v);
-                }
-            } else {
-                if !f.starts_with(common::EPUB3) {
-                    f = format!("{}{}", common::EPUB3, f);
-                }
-                let d3 = (*s.borrow_mut()).read_file(f.as_str());
-                if let Ok(v3) = d3 {
-                    self.set_data(v3);
+            let prefixs = vec!["", common::EPUB, "EPUB/"];
+            if self._data.is_none() && self.reader.is_some() && !f.is_empty() {
+                for prefix in prefixs.iter() {
+                    let s = self.reader.as_mut().unwrap();
+
+                    // 添加 前缀再次读取
+                    f = format!("{prefix}{}", self._file_name);
+                    let d = (*s.borrow_mut()).read_file(f.as_str());
+                    if let Ok(v) = d {
+                        self.set_data(v);
+                        break;
+                    }
                 }
             }
         }

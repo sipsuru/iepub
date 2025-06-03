@@ -584,9 +584,10 @@ pub mod concat {
             let mut book2 = builder.book().unwrap();
 
             let mut builder = EpubBuilder::default();
-            let (mut builder, len, a_len) = add_into_epub(builder, &mut book1, 0, 0,0).unwrap();
+            let (mut builder, len, a_len) = add_into_epub(builder, &mut book1, 0, 0, 0).unwrap();
 
-            let (mut builder, len, a_len) = add_into_epub(builder, &mut book2, len, a_len,0).unwrap();
+            let (mut builder, len, a_len) =
+                add_into_epub(builder, &mut book2, len, a_len, 0).unwrap();
 
             let b = builder.book().unwrap();
 
@@ -602,13 +603,13 @@ pub mod concat {
 }
 #[cfg(test)]
 mod tests {
+    use super::{convert_mobi_html_data, epub_to_mobi, mobi_to_epub};
     use crate::{
         adapter::core::convert_epub_html_img,
         common::IError,
         mobi::core::MobiAssets,
         prelude::{EpubBuilder, EpubHtml, EpubWriter, MobiReader, MobiWriter},
     };
-    use super::{convert_mobi_html_data, epub_to_mobi, mobi_to_epub};
 
     #[test]
     #[ignore = "dan.mobi"]
@@ -628,20 +629,21 @@ mod tests {
         EpubWriter::write_to_mem(&mut epub, true).unwrap();
         // epub.write("convert.epub").unwrap();
     }
-    
+
     #[test]
     #[cfg(feature = "no_nav")]
     fn test_convert_no_nav() {
         use crate::common::tests::download_zip_file;
         let name = "convert.mobi";
-        download_zip_file(
-            name,
-            "https://github.com/user-attachments/files/18818424/convert.mobi.zip",
-        );
 
-        let path = std::env::current_dir().unwrap().join(name);
-        let mut mobi =
-            MobiReader::new(std::fs::File::open(path.to_str().unwrap()).unwrap()).unwrap();
+        let mut mobi = MobiReader::new(
+            std::fs::File::open(download_zip_file(
+                name,
+                "https://github.com/user-attachments/files/18818424/convert.mobi.zip",
+            ))
+            .unwrap(),
+        )
+        .unwrap();
 
         let mut book = mobi.load().unwrap();
 

@@ -873,6 +873,7 @@ mod tests {
         assert_eq!(b.assets().len() + 2, nb.assets().len());
         // 多出来的一个是导航 nav.xhtml，还有toc.ncx
         assert_eq!(b.chapters().len() + 1, nb.chapters().len());
+        assert_ne!(0, b.assets_mut().next().unwrap().data().unwrap().len());
 
         // 读取html
         let chapter = nb.get_chapter("0.xhtml");
@@ -929,10 +930,14 @@ html
         // 相关文件没有存放在 OEBPS 目录内
         let name = "epub-book.epub";
 
-        let mut book = read_from_file(download_zip_file(
-            name,
-            "https://github.com/user-attachments/files/19544787/epub-book.epub.zip",
-        ).as_str()).unwrap();
+        let mut book = read_from_file(
+            download_zip_file(
+                name,
+                "https://github.com/user-attachments/files/19544787/epub-book.epub.zip",
+            )
+            .as_str(),
+        )
+        .unwrap();
 
         let nav = book.nav();
 
@@ -993,5 +998,18 @@ html
                 .unwrap()
                 .len()
         );
+    }
+    /// 测试epub3的读取资源文件
+    #[test]
+    fn test_read_epub3_assets() {
+        let name = "../target/epub3.epub";
+        let url =  "https://github.com/IDPF/epub3-samples/releases/download/20230704/childrens-literature.epub";
+        download_epub_file(name, url);
+
+        let mut book = read_from_file(name).unwrap();
+        assert_ne!(0, book.assets().len());
+        for ele in book.assets_mut() {
+            assert_ne!(0, ele.data().unwrap().len());
+        }
     }
 }
