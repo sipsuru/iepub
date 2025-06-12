@@ -1,1 +1,2 @@
-- 支持EPUB3格式
+- epub增加raw_data方法
+- EpubReader支持异步
