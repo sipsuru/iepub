@@ -123,6 +123,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          FILES=$(git --no-pager show --pretty="" --name-only HEAD)
+          echo $FILES
+          git --no-pager show --pretty="" --name-only HEAD | grep CHANGELOG.md || (echo "::error ::NO CHANGELOG UPDATE,FAIL TO RELEASE" && exit 101)
           gh release create -F CHANGELOG.md --target master v${{ needs.check.outputs.NEXT_VERSION }} ./out/iepub-tool
   publish:
     runs-on: ubuntu-24.04
