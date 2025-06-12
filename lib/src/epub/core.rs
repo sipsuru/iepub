@@ -1,9 +1,8 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display};
 use std::io::Write;
-use std::rc::Rc;
 use std::str::FromStr;
+use std::sync::{Arc, Mutex};
 
 use super::common::{self};
 use super::html::{get_html_info, to_html};
@@ -34,6 +33,8 @@ epub_base_field! {
         title: String,
         /// 自定义的css，会被添加到link下
         css: Option<String>,
+        /// 文件初始内容
+        raw_data:Option<String>,
     }
 }
 
@@ -63,13 +64,13 @@ impl EpubHtml {
             (None, self.file_name().to_string())
         };
         let mut f = String::from(self._file_name.as_str());
-        let prefixs = vec!["", common::EPUB, "EPUB/"];
+        let prefixs = vec!["", common::EPUB, common::EPUB3];
         if self._data.is_none() && self.reader.is_some() && !f.is_empty() {
             for prefix in prefixs.iter() {
                 // 添加 前缀再次读取
                 f = format!("{prefix}{origin}");
                 let s = self.reader.as_mut().unwrap();
-                let d = (*s.borrow_mut()).read_string(f.as_str());
+                let d = s.lock().unwrap().read_string(f.as_str());
                 match d {
                     Ok(v) => {
                         if let Ok((title, data)) = get_html_info(v.as_str(), id) {
@@ -102,20 +103,36 @@ impl EpubHtml {
         Some(to_html(self, false))
     }
 
-    ///
-    /// 获取数据，当处于读模式时自动读取epub文件内容
-    ///
-    fn read_data(&mut self) -> Option<&[u8]> {
-        let f = self._file_name.as_str();
-        if self._data.is_none() && self.reader.is_some() && !f.is_empty() {
-            // 可读
-            // let d = self.reader.as_mut().unwrap().read_file(f);
-            // if let Ok(v) = d {
-            //     self.set_data(v);
-            // }
+    pub fn raw_data(&mut self) -> Option<&str> {
+        let (id, origin) = if let Some(index) = self._file_name.find(|f| f == '#') {
+            (
+                Some(&self._file_name[(index + 1)..]),
+                self._file_name[0..index].to_string(),
+            )
+        } else {
+            (None, self.file_name().to_string())
+        };
+        let mut f = String::from(self._file_name.as_str());
+        let prefixs = vec!["", common::EPUB, common::EPUB3];
+        if self.raw_data.is_none() && self.reader.is_some() && !f.is_empty() {
+            for prefix in prefixs.iter() {
+                // 添加 前缀再次读取
+                f = format!("{prefix}{origin}");
+                let s = self.reader.as_mut().unwrap();
+                let d = s.lock().unwrap().read_string(f.as_str());
+                if let Ok(data) = d {
+                    self.raw_data = Some(data);
+                }
+            }
         }
+        self.raw_data.as_deref()
+    }
 
-        self._data.as_deref()
+    pub fn release_raw_data(&mut self) {
+        if let Some(data) = &mut self.raw_data {
+            data.clear();
+        }
+        self.raw_data = None;
     }
 
     pub fn set_title(&mut self, title: &str) {
@@ -191,7 +208,7 @@ impl EpubAssets {
                     let s = self.reader.as_mut().unwrap();
                     // 添加 前缀再次读取
                     f = format!("{prefix}{}", self._file_name);
-                    let d = (*s.borrow_mut()).read_file(f.as_str());
+                    let d = s.lock().unwrap().read_file(f.as_str());
                     if let Ok(v) = d {
                         self.set_data(v);
                         break;
@@ -217,7 +234,7 @@ impl EpubAssets {
             for prefix in prefixs.iter() {
                 let s = self.reader.as_mut().unwrap();
                 f = format!("{prefix}{}", self._file_name);
-                let d: Result<(), IError> = (*s.borrow_mut()).read_to_path(f.as_str(), file_path);
+                let d: Result<(), IError> = s.lock().unwrap().read_to_path(f.as_str(), file_path);
                 if d.is_ok() {
                     break;
                 }
@@ -393,7 +410,7 @@ pub struct EpubBook {
     /// 版本号
     version: String,
     /// 处于读模式
-    reader: Option<Rc<RefCell<Box<dyn EpubReaderTrait>>>>,
+    reader: Option<Arc<Mutex<Box<dyn EpubReaderTrait + Send + Sync>>>>,
     /// PREFIX
     pub(crate) prefix: String,
 }
@@ -489,7 +506,10 @@ impl EpubBook {
         self.meta.len()
     }
 
-    pub(crate) fn set_reader(&mut self, reader: Rc<RefCell<Box<dyn EpubReaderTrait>>>) {
+    pub(crate) fn set_reader(
+        &mut self,
+        reader: Arc<Mutex<Box<dyn EpubReaderTrait + Send + Sync>>>,
+    ) {
         self.reader = Some(reader)
     }
 
@@ -503,7 +523,7 @@ impl EpubBook {
 
     pub fn add_assets(&mut self, mut assets: EpubAssets) {
         if let Some(r) = &self.reader {
-            assets.reader = Some(Rc::clone(r));
+            assets.reader = Some(Arc::clone(r));
         }
         self.assets.push(assets);
     }
@@ -533,7 +553,7 @@ impl EpubBook {
 
     pub fn add_chapter(&mut self, mut chap: EpubHtml) {
         if let Some(r) = &self.reader {
-            chap.reader = Some(Rc::clone(r));
+            chap.reader = Some(Arc::clone(r));
         }
         self.chapters.push(chap);
     }
@@ -612,7 +632,7 @@ impl EpubBook {
                     .with_title(ele.title())
                     .with_file_name(ele.file_name());
                 if let Some(r) = &self.reader {
-                    chap.reader = Some(Rc::clone(r));
+                    chap.reader = Some(Arc::clone(r));
                 }
                 self.chapters.insert(index + offset, chap);
                 offset = offset + 1;
@@ -640,7 +660,7 @@ fn flatten_nav(nav: &[EpubNav]) -> Vec<&EpubNav> {
     }
     n
 }
-pub(crate) trait EpubReaderTrait {
+pub(crate) trait EpubReaderTrait: Send + Sync {
     fn read(&mut self, book: &mut EpubBook) -> IResult<()>;
     ///
     /// file epub中的文件目录
