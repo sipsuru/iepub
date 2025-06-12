@@ -254,7 +254,7 @@ pub(crate) mod tests {
             .or_else(|_e| std::env::var("ALL_PROXY"))
             .or_else(|_e| std::env::var("all_proxy"))
         {
-            req = req.with_proxy(minreq::Proxy:: new(proxy).expect("invalid proxy env"));
+            req = req.with_proxy(minreq::Proxy::new(proxy).expect("invalid proxy env"));
         }
         req
     }
@@ -271,8 +271,15 @@ pub(crate) mod tests {
             // 下载并解压
             get_req(url)
                 .send()
-                .map(|v| v.as_bytes().to_vec())
                 .map_err(|e| IError::InvalidArchive(Cow::from("download fail")))
+                .map(|v| (v.headers["content-length"].clone(), v.as_bytes().to_vec()))
+                .and_then(|(len, res)| {
+                    if len.parse::<usize>().unwrap() == res.len() {
+                        Ok(res)
+                    } else {
+                        Err(IError::InvalidArchive(Cow::from("download fail,len error")))
+                    }
+                })
                 .and_then(|f| std::fs::write(name, f).map_err(|e| IError::Io(e)))
                 .unwrap();
         }
@@ -287,8 +294,15 @@ pub(crate) mod tests {
 
             let mut zip = get_req(url)
                 .send()
-                .map(|v| v.as_bytes().to_vec())
                 .map_err(|e| IError::InvalidArchive(Cow::from("download fail")))
+                .map(|v| (v.headers["content-length"].clone(), v.as_bytes().to_vec()))
+                .and_then(|(len, res)| {
+                    if len.parse::<usize>().unwrap() == res.len() {
+                        Ok(res)
+                    } else {
+                        Err(IError::InvalidArchive(Cow::from("download fail,len error")))
+                    }
+                })
                 .and_then(|f| {
                     zip::ZipArchive::new(std::io::Cursor::new(f))
                         .map_err(|e| IError::InvalidArchive(Cow::from("download fail")))
