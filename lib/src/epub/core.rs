@@ -54,7 +54,23 @@ impl Debug for EpubHtml {
 }
 
 impl EpubHtml {
-    pub fn data(&mut self) -> Option<&[u8]> {
+    pub fn string_data(&self) -> String {
+        if let Some(data) = &self._data {
+            String::from_utf8(data.clone()).unwrap_or_else(|_e| String::new())
+        } else {
+            String::new()
+        }
+    }
+
+    pub fn data(&self) -> Option<&[u8]> {
+        self._data.as_ref().map(|f| f.as_slice())
+    }
+    ///
+    /// 获取数据
+    ///
+    /// 支持延迟读取
+    ///
+    pub fn data_mut(&mut self) -> Option<&[u8]> {
         let (id, origin) = if let Some(index) = self._file_name.find(|f| f == '#') {
             (
                 Some(&self._file_name[(index + 1)..]),
@@ -99,7 +115,7 @@ impl EpubHtml {
     }
 
     pub fn format(&mut self) -> Option<String> {
-        self.data();
+        self.data_mut();
         Some(to_html(self, false))
     }
 
@@ -335,8 +351,8 @@ impl EpubNav {
         self.child.push(child);
     }
 
-    pub fn child(&self) -> &[EpubNav] {
-        &self.child
+    pub fn child(&self) -> std::slice::Iter<EpubNav> {
+        self.child.iter()
     }
 }
 
@@ -533,14 +549,17 @@ impl EpubBook {
     ///
     /// [file_name] 不需要带有 EPUB 目录
     ///
-    pub fn get_assets(&mut self, file_name: &str) -> Option<&mut EpubAssets> {
+    pub fn get_assets(&self, file_name: &str) -> Option<&EpubAssets> {
+        self.assets.iter().find(|s| s.file_name() == file_name)
+    }
+
+    ///
+    /// 查找章节
+    ///
+    /// [file_name] 不需要带有 EPUB 目录
+    ///
+    pub fn get_assets_mut(&mut self, file_name: &str) -> Option<&mut EpubAssets> {
         self.assets.iter_mut().find(|s| s.file_name() == file_name)
-        // .map(|f| {
-        //     if let Some(r) = &self.reader {
-        //         f.reader = Some(Rc::clone(r));
-        //     }
-        //     f
-        // })
     }
 
     pub fn assets(&self) -> std::slice::Iter<EpubAssets> {
@@ -571,23 +590,35 @@ impl EpubBook {
     ///
     /// [file_name] 不需要带有 EPUB 目录
     ///
-    pub fn get_chapter(&mut self, file_name: &str) -> Option<&mut EpubHtml> {
+    pub fn get_chapter(&self, file_name: &str) -> Option<&EpubHtml> {
+        self.chapters.iter().find(|s| {
+            return s.file_name() == file_name;
+        })
+    }
+
+    ///
+    /// 查找章节
+    ///
+    /// [file_name] 不需要带有 EPUB 目录
+    ///
+    pub fn get_chapter_mut(&mut self, file_name: &str) -> Option<&mut EpubHtml> {
         self.chapters.iter_mut().find(|s| {
             return s.file_name() == file_name;
         })
     }
+
     pub fn set_version(&mut self, version: &str) {
         self.version.clear();
         self.version.push_str(version);
     }
 
-    pub fn version(&mut self) -> &str {
+    pub fn version(&self) -> &str {
         self.version.as_ref()
     }
 
     /// 获取目录
-    pub fn nav(&self) -> &[EpubNav] {
-        &self.nav
+    pub fn nav(&self) -> std::slice::Iter<EpubNav> {
+        self.nav.iter()
     }
 
     pub fn set_cover(&mut self, cover: EpubAssets) {

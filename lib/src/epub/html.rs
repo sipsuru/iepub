@@ -26,7 +26,7 @@ pub(crate) fn to_html(chap: &mut EpubHtml, append_title: bool) -> String {
     {
         body.insert_str(
             0,
-            String::from_utf8(chap.data().as_ref().unwrap().to_vec())
+            String::from_utf8(chap.data_mut().as_ref().unwrap().to_vec())
                 .unwrap()
                 .as_str(),
         );
@@ -54,11 +54,11 @@ pub(crate) fn to_html(chap: &mut EpubHtml, append_title: bool) -> String {
     )
 }
 
-fn to_nav_xml(nav: &[EpubNav]) -> String {
+fn to_nav_xml(nav: std::slice::Iter<EpubNav>) -> String {
     let mut xml = String::new();
     xml.push_str("<ol>");
     for ele in nav {
-        if ele.child().is_empty() {
+        if ele.child().len() == 0 {
             // 没有下一级
             xml.push_str(
                 format!(
@@ -72,7 +72,7 @@ fn to_nav_xml(nav: &[EpubNav]) -> String {
             xml.push_str(
                 format!(
                     "<li><a href=\"{}\">{}</a>{}</li>",
-                    ele.child()[0].file_name(),
+                    ele.child().as_slice()[0].file_name(),
                     ele.title(),
                     to_nav_xml(ele.child()).as_str()
                 )
@@ -85,18 +85,18 @@ fn to_nav_xml(nav: &[EpubNav]) -> String {
 }
 
 /// 生成自定义的导航html
-pub(crate) fn to_nav_html(book_title: &str, nav: &[EpubNav]) -> String {
+pub(crate) fn to_nav_html(book_title: &str, nav: std::slice::Iter<EpubNav>) -> String {
     format!(
         r#"<?xml version='1.0' encoding='utf-8'?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="zh" xml:lang="zh"><head><title>{book_title}</title></head><body><nav epub:type="toc" id="id" role="doc-toc"><h2>{book_title}</h2>{}</nav></body></html>"#,
         to_nav_xml(nav)
     )
 }
 
-fn to_toc_xml_point(nav: &[EpubNav], parent: usize) -> String {
+fn to_toc_xml_point(nav: std::slice::Iter<EpubNav>, parent: usize) -> String {
     let mut xml = String::new();
-    for (index, ele) in nav.iter().enumerate() {
+    for (index, ele) in nav.enumerate() {
         xml.push_str(format!("<navPoint id=\"{}-{}\">", parent, index).as_str());
-        if ele.child().is_empty() {
+        if ele.child().len() == 0 {
             xml.push_str(
                 format!(
                     "<navLabel><text>{}</text></navLabel><content src=\"{}\"></content>",
@@ -110,7 +110,7 @@ fn to_toc_xml_point(nav: &[EpubNav], parent: usize) -> String {
                 format!(
                     "<navLabel><text>{}</text></navLabel><content src=\"{}\"></content>{}",
                     ele.title(),
-                    ele.child()[0].file_name(),
+                    ele.child().as_slice()[0].file_name(),
                     to_toc_xml_point(ele.child(), index).as_str()
                 )
                 .as_str(),
@@ -122,7 +122,7 @@ fn to_toc_xml_point(nav: &[EpubNav], parent: usize) -> String {
 }
 
 /// 生成epub中的toc.ncx文件
-pub(crate) fn to_toc_xml(book_title: &str, nav: &[EpubNav]) -> String {
+pub(crate) fn to_toc_xml(book_title: &str, nav: std::slice::Iter<EpubNav>) -> String {
     format!(
         r#"<?xml version='1.0' encoding='utf-8'?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head><meta content="1394" name="dtb:uid"/><meta content="0" name="dtb:depth"/><meta content="0" name="dtb:totalPageCount"/><meta content="0" name="dtb:maxPageNumber"/></head><docTitle><text>{book_title}</text></docTitle><navMap>{}</navMap></ncx>"#,
         to_toc_xml_point(nav, 0)
@@ -539,7 +539,7 @@ ok
 
         let nav = vec![n, n1];
 
-        let html = to_nav_html("book_title", &nav);
+        let html = to_nav_html("book_title", nav.iter());
 
         println!("{}", html);
 
@@ -569,7 +569,7 @@ ok
 
         let nav = vec![n, n1];
 
-        let html = to_toc_xml("book_title", &nav);
+        let html = to_toc_xml("book_title", nav.iter());
 
         println!("{}", html);
 
