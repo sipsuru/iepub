@@ -600,7 +600,7 @@ pub(crate) mod epub {
                 let print_body = opts.iter().any(|f| f.key == "b");
 
                 for ele in chaps {
-                    if let Some(chap) = book.get_chapter(ele) {
+                    if let Some(chap) = book.get_chapter_mut(ele) {
                         if let Some(d) = dir {
                             let mut p_dir: std::path::PathBuf =
                                 std::path::Path::new(&d).join(chap.file_name());
@@ -631,7 +631,7 @@ pub(crate) mod epub {
                                 continue;
                             }
                             if print_body {
-                                write_file(file.as_str(), chap.data().unwrap())
+                                write_file(file.as_str(), chap.data_mut().unwrap())
                             } else {
                                 let d = chap.format().unwrap_or("".to_string());
                                 write_file(file.as_str(), d.as_bytes());
@@ -641,7 +641,7 @@ pub(crate) mod epub {
                             println!(
                                 "{}",
                                 if print_body {
-                                    String::from_utf8(chap.data().unwrap().to_vec()).unwrap()
+                                    String::from_utf8(chap.data_mut().unwrap().to_vec()).unwrap()
                                 } else {
                                     chap.format().unwrap_or("".to_string())
                                 }
@@ -1048,7 +1048,8 @@ pub(crate) mod mobi {
                             ele.data().unwrap(),
                         );
                     }
-                    if let Some(nav) = book.nav() {
+                    let nav = book.nav();
+                    if nav.len() > 0 {
                         // 然后输出html
                         for (index, chap) in book.chapters().enumerate() {
                             if let Some(p) = get_nav_value(nav.as_slice(), chap.nav_id()) {
@@ -1057,7 +1058,7 @@ pub(crate) mod mobi {
                                 create_dir(dir.as_str());
                                 write_file(
                                     format!("{dir}/{:02}.{}.html", index, chap.title()).as_str(),
-                                    self.format_html(chap.data(), chap.title()).as_bytes(),
+                                    self.format_html(chap.string_data().as_str(), chap.title()).as_bytes(),
                                 );
                             }
                         }

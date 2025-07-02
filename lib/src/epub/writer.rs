@@ -142,7 +142,7 @@ impl<T: Write + Seek> EpubWriter<T> {
     fn write_chapters(&mut self, book: &mut EpubBook) -> IResult<()> {
         let chap = book.chapters_mut();
         for ele in chap {
-            if ele.data().is_none() {
+            if ele.data_mut().is_none() {
                 continue;
             }
 

@@ -66,20 +66,16 @@ pub fn mobi_to_epub(mobi: &mut MobiBook) -> IResult<EpubBook> {
     }
 
     // 添加目录
-    if let Some(nav) = mobi.nav() {
+    for n in mobi.nav() {
         builder = builder.custome_nav(true);
-
-        for n in nav {
-            builder = builder.add_nav(to_epub_nav(n, ""));
-        }
+        builder = builder.add_nav(to_epub_nav(n, ""));
     }
 
-    let empty = Vec::new();
     let assets = mobi.assets().as_slice();
     // 添加文本
     for chap in mobi.chapters() {
         let nav: Vec<&str> =
-            get_mobi_chapter_nav(chap, mobi.nav().unwrap_or(empty.iter()).as_slice())
+            get_mobi_chapter_nav(chap, mobi.nav().as_slice())
                 .unwrap()
                 .iter()
                 .map(|f| f.title())
@@ -89,7 +85,7 @@ pub fn mobi_to_epub(mobi: &mut MobiBook) -> IResult<EpubBook> {
             EpubHtml::default()
                 .with_title(chap.title())
                 .with_file_name(format!("{}.xhtml", nav.join("/")).as_str())
-                .with_data(convert_mobi_html_data(nav.len() - 1, chap.data(), assets)),
+                .with_data(convert_mobi_html_data(nav.len() - 1, chap.string_data().as_str(), assets)),
         );
     }
 
@@ -132,7 +128,7 @@ pub fn mobi_to_epub(mobi: &mut MobiBook) -> IResult<EpubBook> {
 
 /// 转换 mobi 的 html 文本，主要是处理其中的img标签，添加src属性
 fn convert_mobi_html_data(indent: usize, data: &str, assets: &[MobiAssets]) -> Vec<u8> {
-    let mut v = data.to_string();
+    let mut v: String = data.to_string();
     let indent = (0..indent).map(|_| "../").collect::<Vec<&str>>().join("");
     for ele in assets {
         let target = format!(
@@ -165,12 +161,12 @@ fn convert_mobi_html_data(indent: usize, data: &str, assets: &[MobiAssets]) -> V
 }
 
 fn epub_nav_to_mobi_nav(
-    nav: &[EpubNav],
+    nav: std::slice::Iter<EpubNav>,
     start: usize,
     chap: &[(MobiHtml, String)],
 ) -> Vec<MobiNav> {
     let mut res = Vec::new();
-    for ele in nav.iter().enumerate() {
+    for ele in nav.enumerate() {
         let mut n = MobiNav::default(ele.0 + start).with_title(ele.1.title());
 
         // 关联章节
@@ -194,16 +190,15 @@ fn epub_nav_to_mobi_nav(
 }
 
 /// 处理图片地址，把可能存在的相对路径换成绝对路径
-fn convert_epub_html_img(html: String, path: &str) -> String {
+fn convert_epub_html_img(html: &[u8], path: &str) -> Vec<u8> {
     let current = crate::path::Path::system(path).pop();
 
-    String::from_utf8(generate_text_img_xml(html.as_bytes(), |v| {
+    generate_text_img_xml(html, |v| {
         let path = String::from_utf8(v).unwrap_or(String::new());
         // 修正路径
         let t = current.join(path.as_str());
         format!("src='{}'", t.to_str()).as_bytes().to_vec()
-    }))
-    .unwrap_or_else(|_| String::new())
+    })
 }
 
 /// 修改xml片段中的img标签的src属性的路径
@@ -313,17 +308,17 @@ pub fn epub_to_mobi(epub: &mut EpubBook) -> IResult<MobiBook> {
     let chap_temp: Vec<(MobiHtml, String)> = chap
         .enumerate()
         .map(|(index, html)| {
+            let file_name = html.file_name().to_string();
             (
-                MobiHtml::new(index).with_title(html.title()).with_data(
-                    html.data()
-                        .map(|f| String::from_utf8(f.to_vec()).or_else(|_| Err(IError::Unknown)))
-                        .unwrap_or(Err(IError::Unknown))
-                        .map(|v| convert_epub_html_img(v, html.file_name()))
+                MobiHtml::new(index)
+                .with_title(html.title())
+                .with_data(
+                    html.data_mut()
+                        .map(|v| convert_epub_html_img(v, file_name.as_str()))
                         // .unwrap_or_else(||Err(FromUtf8Error { bytes: Vec::n, error: e }))
-                        .unwrap_or(String::new())
-                        .as_str(),
+                        .unwrap_or(Vec::new()),
                 ),
-                html.file_name().to_string(),
+                file_name,
             )
         })
         .collect();
@@ -457,7 +452,7 @@ pub mod concat {
         let mut rm = HashSet::new();
 
         // 文件名需要重新编号，所以目录也要变一下
-        for (index, ele) in epub.nav().iter().enumerate() {
+        for (index, ele) in epub.nav().enumerate() {
             let (nav, l) = clone_epub_nav(ele, &mut new_file_name, len);
             len = l;
             if index < skip {
@@ -477,7 +472,7 @@ pub mod concat {
                         .with_file_name(v.as_str())
                         .with_title(ele.title())
                         .with_data(replace_html_assets(
-                            ele.data().unwrap(),
+                            ele.data_mut().unwrap(),
                             &new_asset_file_name,
                             old.to_string(),
                             v.as_str(),
@@ -595,7 +590,7 @@ pub mod concat {
             println!("{:?}", b.chapters());
 
             assert_eq!(
-                b.nav()[0].file_name(),
+                b.nav().as_slice()[0].file_name(),
                 b.chapters().next().unwrap().file_name()
             );
         }
@@ -762,8 +757,11 @@ mod tests {
         let html = r#"<img class="imagecontent lazyload" data-src='https://img3.readpai.com/2/2356/121744/86275.jpg' src="../temp/2356/images/www.bilinovel.com/2356/0/86275.jpg"/><img class="imagecontent lazyload" data-src='https://img3.readpai.com/2/2356/121744/86276.jpg' src="../temp/2356/images/www.bilinovel.com/2356/0/86276.jpg"/><img class="imagecontent lazyload" data-src='https://img3.readpai.com/2/2356/121744/86277.jpg' src="../temp/2356/images/www.bilinovel.com/2356/0/86277.jpg"/><img class="imagecontent lazyload" data-src='https://img3.readpai.com/2/2356/121744/86278.jpg' src="../temp/2356/images/www.bilinovel.com/2356/0/86278.jpg"/><img class="imagecontent lazyload" data-src='https://img3.readpai.com/2/2356/121744/86279.jpg' src="../temp/2356/images/www.bilinovel.com/2356/0/86279.jpg"/>
 </div>
   </body></html>"#;
-        let v = convert_epub_html_img(html.to_string(), "/parent1/parent.xhtml");
+        let v = convert_epub_html_img(html.as_bytes(), "/parent1/parent.xhtml");
 
-        println!("{}", v);
+        println!("{}", String::from_utf8(v.clone()).unwrap());
+        assert_eq!(r#"<img class="imagecontent lazyload" data-src='https://img3.readpai.com/2/2356/121744/86275.jpg' src='/temp/2356/images/www.bilinovel.com/2356/0/86275.jpg'/><img class="imagecontent lazyload" data-src='https://img3.readpai.com/2/2356/121744/86276.jpg' src='/temp/2356/images/www.bilinovel.com/2356/0/86276.jpg'/><img class="imagecontent lazyload" data-src='https://img3.readpai.com/2/2356/121744/86277.jpg' src='/temp/2356/images/www.bilinovel.com/2356/0/86277.jpg'/><img class="imagecontent lazyload" data-src='https://img3.readpai.com/2/2356/121744/86278.jpg' src='/temp/2356/images/www.bilinovel.com/2356/0/86278.jpg'/><img class="imagecontent lazyload" data-src='https://img3.readpai.com/2/2356/121744/86279.jpg' src='/temp/2356/images/www.bilinovel.com/2356/0/86279.jpg'/>
+</div>
+  </body></html>"#,String::from_utf8(v).unwrap());
     }
 }

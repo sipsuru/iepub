@@ -93,7 +93,7 @@ let v = MobiBuilder::default()
             .with_publisher("行星出版社")
             .append_title(true)
             .custome_nav(true)
-            .add_chapter(MobiHtml::new(1).with_title("标题").with_data("<p>锻炼</p>"))
+            .add_chapter(MobiHtml::new(1).with_title("标题").with_data("<p>锻炼</p>".as_bytes().to_vec()))
             // .file("builder.mobi")
             .mem()
             .unwrap();

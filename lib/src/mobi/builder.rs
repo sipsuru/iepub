@@ -21,7 +21,7 @@ use super::{
 ///         .with_publisher("行星出版社")
 ///         .append_title(true)
 ///         .cover(Vec::new())
-///         .add_chapter(MobiHtml::new(1).with_title("标题").with_data("<p>锻炼</p>"))
+///         .add_chapter(MobiHtml::new(1).with_title("标题").with_data("<p>锻炼</p>".as_bytes().to_vec()))
 ///         // .file("builder.mobi")
 ///         .mem()
 ///         .unwrap();
@@ -325,7 +325,7 @@ mod tests {
             .add_chapter(
                 MobiHtml::new(1)
                     .with_title("标题")
-                    .with_data("<p>锻炼</p><img src='1.jpg'/>"),
+                    .with_data("<p>锻炼</p><img src='1.jpg'/>".as_bytes().to_vec()),
             )
             .add_assets("1.jpg", img.clone())
             .cover(img2.clone())
@@ -340,17 +340,17 @@ mod tests {
 
         assert_eq!("书名", book.title());
         assert_eq!("作者", book.creator().unwrap());
-        assert_eq!(1, book.nav().unwrap().len());
+        assert_eq!(1, book.nav().len());
         assert_eq!(
             r#"<h1 style="text-align: center">标题></h1><p>锻炼</p><img recindex='0'/>"#,
-            book.chapters().next().unwrap().data()
+            book.chapters().next().unwrap().string_data()
         );
 
         assert_eq!(1, book.assets().len());
         assert_vec(&img, &book.assets().next().unwrap().data().unwrap());
         assert_vec(&img2, &book.cover().unwrap().data().unwrap());
 
-        assert_eq!(1, book.nav().unwrap().len());
-        assert_eq!("标题", book.nav().unwrap().next().unwrap().title());
+        assert_eq!(1, book.nav().len());
+        assert_eq!("标题", book.nav().next().unwrap().title());
     }
 }

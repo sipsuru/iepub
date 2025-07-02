@@ -535,8 +535,8 @@ impl<T: Write + Seek> MobiWriter<T> {
         );
 
         let mut pos = Vec::new();
-        if let Some(nav) = book.nav() {
-            let nav = nav.as_slice();
+        let nav = book.nav().as_slice();
+        if nav.len() > 0 {
             // 添加目录html片段
             let (mut n_text, n_pos) = generate_human_nav_xml(text.len(), nav, book.title());
             pos = n_pos;
@@ -582,10 +582,10 @@ impl<T: Write + Seek> MobiWriter<T> {
         add_break(&mut text);
         // 添加结尾的目录，这部分应该是给阅读器看的
 
-        if let Some(nav) = book.nav() {
+        let nav = book.nav().as_slice();
+        if nav.len() > 0 {
             let p = text.len();
-            let nav = nav.as_slice();
-            let mut n_text = generate_reader_nav_xml(text.len(), nav, &pos_value);
+            let mut n_text = generate_reader_nav_xml(p, nav, &pos_value);
             text.append(&mut n_text);
             add_break(&mut text);
             // 修改 目录 定位
@@ -595,17 +595,23 @@ impl<T: Write + Seek> MobiWriter<T> {
                 text[toc_pos + i] = v.clone();
             }
         }
+     
         text.append(&mut "</body></html>".as_bytes().to_vec());
         text
     }
 
-    fn html_p_ident(&self, text: &str) -> String {
+    fn html_p_ident(&self, v: Option<&[u8]>) -> String {
+        if let Some(v) = v {
+            let text =String::from_utf8(v.to_vec()).unwrap_or_else(|_e|String::new());
         // text.replace(from, to)
         if self.ident == 0 {
-            text.to_string()
+            text
         } else {
             let v = format!(r#"<p width="{}em">"#, self.ident);
             text.replace("<p ", v.as_str()).replace("<p>", v.as_str())
+        }
+        }else{
+            String::new()
         }
     }
 

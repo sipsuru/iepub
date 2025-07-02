@@ -896,13 +896,13 @@ mod tests {
         assert_ne!(0, b.assets_mut().next().unwrap().data().unwrap().len());
 
         // 读取html
-        let chapter = nb.get_chapter("0.xhtml");
+        let chapter = nb.get_chapter_mut("0.xhtml");
         // assert_ne!(None, chapter);
         assert!(chapter.is_some());
 
         if let Some(c) = chapter {
             //body data
-            let data = c.data();
+            let data = c.data_mut();
             assert!(data.is_some());
             let d = String::from_utf8(data.unwrap().to_vec()).unwrap();
             println!("d [{}]", d);
@@ -928,7 +928,7 @@ html
 
         println!("nav ={:?}", nb.nav());
         assert_eq!(1, nb.nav().len());
-        assert_eq!("0.xhtml", nb.nav()[0].file_name());
+        assert_eq!("0.xhtml", nb.nav().as_slice()[0].file_name());
 
         // println!("{}",c.data().map(|f|String::from_utf8(f.to_vec())).unwrap().unwrap());
     }
@@ -939,12 +939,12 @@ html
         let mut book = EpubBook::default();
         let _ = read_nav_xml(xml, &mut book).unwrap();
 
-        let n = book.nav();
+        let n = book.nav().as_slice();
 
         assert_eq!(1, n.len());
         assert_eq!("", n[0].title());
         assert_eq!(1, n[0].child().len());
-        assert_eq!("", n[0].child()[0].title());
+        assert_eq!("", n[0].child().as_slice()[0].title());
     }
 
     #[test]
@@ -963,7 +963,7 @@ html
         )
         .unwrap();
 
-        let nav = book.nav();
+        let nav = book.nav().as_slice();
 
         assert_ne!(0, nav.len());
         assert_ne!("", nav[0].title());
@@ -973,7 +973,7 @@ html
         chap.next();
 
         assert_ne!("", chap.next().unwrap().title());
-        assert_ne!(None, book.chapters_mut().next().unwrap().data());
+        assert_ne!(None, book.chapters_mut().next().unwrap().data_mut());
     }
 
     #[test]
@@ -984,18 +984,18 @@ html
 
         let mut book = read_from_file(name).unwrap();
 
-        let nav = book.nav();
+        let nav = book.nav().as_slice();
 
         assert_ne!(0, nav.len());
         assert_ne!("", nav[0].title());
         let mut chap = book.chapters_mut();
 
-        assert_eq!(75, chap.next().unwrap().data().unwrap().len());
+        assert_eq!(75, chap.next().unwrap().data_mut().unwrap().len());
 
         // println!("{}", String::from_utf8( chap.next().unwrap().data().unwrap().to_vec()).unwrap());
         chap.next();
         chap.next();
-        assert_eq!(9343, chap.next().unwrap().data().unwrap().to_vec().len());
+        assert_eq!(9343, chap.next().unwrap().data_mut().unwrap().to_vec().len());
 
         assert!(book.get_chapter("s04.xhtml#pgepubid00536").is_some());
         // assert!(chap.next().is_some());
@@ -1018,7 +1018,7 @@ html
         assert_ne!(0, epub.chapters().len());
         assert_ne!(
             0,
-            String::from_utf8(epub.chapters_mut().next().unwrap().data().unwrap().to_vec())
+            String::from_utf8(epub.chapters_mut().next().unwrap().data_mut().unwrap().to_vec())
                 .unwrap()
                 .len()
         );

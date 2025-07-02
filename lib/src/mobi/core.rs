@@ -9,7 +9,7 @@ pub struct MobiHtml {
     /// 唯一id，写入时需要 确保nav能正确指向章节，否则目录会错误
     pub(crate) id: usize,
     /// 可阅读的文本
-    data: String,
+    data: Vec<u8>,
 
     pub(crate) nav_id: usize,
 }
@@ -21,7 +21,7 @@ impl MobiHtml {
             raw: None,
             index: 0,
             id,
-            data: String::new(),
+            data: Vec::new(),
             nav_id: 0,
         }
     }
@@ -29,17 +29,26 @@ impl MobiHtml {
     pub fn title(&self) -> &str {
         &self.title
     }
-    pub fn data(&self) -> &str {
-        &self.data
+    pub fn data(&self) ->  Option<&[u8]> {
+        Some(self.data.as_slice())
     }
+
+    pub fn string_data(&self) -> String {
+        String::from_utf8(self.data.clone()).unwrap_or_else(|_e|String::new())
+    }
+
 
     pub fn nav_id(&self) -> usize {
         self.nav_id
     }
 
-    pub fn with_data(mut self, value: &str) -> Self {
-        self.data = value.to_string();
+    pub fn with_data(mut self, value: Vec<u8>) -> Self {
+        self.data = value;
         self
+    }
+
+    pub fn set_data(&mut self,value: Vec<u8>){
+        self.data = value;
     }
 
     pub fn with_title(mut self, value: &str) -> Self {
@@ -183,7 +192,7 @@ pub struct MobiBook {
     /// 所有图片
     images: Vec<MobiAssets>,
     /// 目录
-    nav: Option<Vec<MobiNav>>,
+    nav: Vec<MobiNav>,
 }
 
 impl MobiBook {
@@ -265,16 +274,12 @@ impl MobiBook {
         self.chapters.push(chap);
     }
 
-    pub fn nav(&self) -> Option<std::slice::Iter<MobiNav>> {
-        self.nav.as_ref().map(|f| f.iter())
+    pub fn nav(&self) -> std::slice::Iter<MobiNav> {
+        self.nav.iter()
     }
 
     pub fn add_nav(&mut self, value: MobiNav) {
-        if let Some(nav) = &mut self.nav {
-            nav.push(value);
-        } else {
-            self.nav = Some(vec![value]);
-        }
+        self.nav.push(value);
     }
 }
 
@@ -311,7 +316,7 @@ impl<T: Read + Seek> MobiReader<T> {
                         index: sec.index,
                         title: nav.title.clone(),
                         raw: None,
-                        data: sec.data.clone(),
+                        data: sec.data.as_bytes().to_vec(),
                     })
                     .collect(),
             );
@@ -330,7 +335,7 @@ impl<T: Read + Seek> MobiReader<T> {
                     index: s.index,
                     title: format!("{}", index + 1),
                     raw: None,
-                    data: s.data.clone(),
+                    data: s.data.as_bytes().to_vec(),
                 };
                 t_nav.push(MobiNav::new(index, html.id).with_title(html.title()));
                 chapters.push(html);
@@ -358,7 +363,7 @@ impl<T: Read + Seek> MobiReader<T> {
                 recindex: 0,
             }),
             images: self.read_all_image()?,
-            nav,
+            nav: nav.unwrap_or_else(||Vec::new()),
         })
     }
 }
