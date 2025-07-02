@@ -595,22 +595,22 @@ impl<T: Write + Seek> MobiWriter<T> {
                 text[toc_pos + i] = v.clone();
             }
         }
-     
+
         text.append(&mut "</body></html>".as_bytes().to_vec());
         text
     }
 
     fn html_p_ident(&self, v: Option<&[u8]>) -> String {
         if let Some(v) = v {
-            let text =String::from_utf8(v.to_vec()).unwrap_or_else(|_e|String::new());
-        // text.replace(from, to)
-        if self.ident == 0 {
-            text
+            let text = String::from_utf8(v.to_vec()).unwrap_or_else(|_e| String::new());
+            // text.replace(from, to)
+            if self.ident == 0 {
+                text
+            } else {
+                let v = format!(r#"<p width="{}em">"#, self.ident);
+                text.replace("<p ", v.as_str()).replace("<p>", v.as_str())
+            }
         } else {
-            let v = format!(r#"<p width="{}em">"#, self.ident);
-            text.replace("<p ", v.as_str()).replace("<p>", v.as_str())
-        }
-        }else{
             String::new()
         }
     }

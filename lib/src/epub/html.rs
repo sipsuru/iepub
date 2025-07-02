@@ -673,7 +673,7 @@ ok
 
         // 测试 epub3 格式
         let name = "EPUB/s04.xhtml";
-        
+
         let html = std::fs::read_to_string(download_zip_file(name, "https://github.com/IDPF/epub3-samples/releases/download/20230704/childrens-literature.epub")).unwrap();
 
         let (title, data) = get_html_info(html.as_str(), Some("pgepubid00495")).unwrap();
@@ -683,5 +683,4 @@ ok
         // assert_ne!(None, chap.data());
         // assert_ne!(0, chap.data().unwrap().len());
     }
-
 }

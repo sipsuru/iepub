@@ -29,14 +29,13 @@ impl MobiHtml {
     pub fn title(&self) -> &str {
         &self.title
     }
-    pub fn data(&self) ->  Option<&[u8]> {
+    pub fn data(&self) -> Option<&[u8]> {
         Some(self.data.as_slice())
     }
 
     pub fn string_data(&self) -> String {
-        String::from_utf8(self.data.clone()).unwrap_or_else(|_e|String::new())
+        String::from_utf8(self.data.clone()).unwrap_or_else(|_e| String::new())
     }
-
 
     pub fn nav_id(&self) -> usize {
         self.nav_id
@@ -47,7 +46,7 @@ impl MobiHtml {
         self
     }
 
-    pub fn set_data(&mut self,value: Vec<u8>){
+    pub fn set_data(&mut self, value: Vec<u8>) {
         self.data = value;
     }
 
@@ -363,7 +362,7 @@ impl<T: Read + Seek> MobiReader<T> {
                 recindex: 0,
             }),
             images: self.read_all_image()?,
-            nav: nav.unwrap_or_else(||Vec::new()),
+            nav: nav.unwrap_or_else(|| Vec::new()),
         })
     }
 }
@@ -381,7 +380,7 @@ mod tests {
             name,
             "https://github.com/user-attachments/files/18904584/3252.zip",
         ));
-        println!("path = {}",path.display());
+        println!("path = {}", path.display());
         let mut mobi =
             MobiReader::new(std::fs::File::open(path.to_str().unwrap()).unwrap()).unwrap();
 
@@ -413,11 +412,14 @@ mod tests {
     fn test_no_nav() {
         let name = "convert.mobi";
 
-        let mut mobi =
-            MobiReader::new(std::fs::File::open(download_zip_file(
-            name,
-            "https://github.com/user-attachments/files/18818424/convert.mobi.zip",
-        )).unwrap()).unwrap();
+        let mut mobi = MobiReader::new(
+            std::fs::File::open(download_zip_file(
+                name,
+                "https://github.com/user-attachments/files/18818424/convert.mobi.zip",
+            ))
+            .unwrap(),
+        )
+        .unwrap();
 
         let book = mobi.load().unwrap();
 

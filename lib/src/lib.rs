@@ -41,8 +41,8 @@ pub mod prelude {
     }
 
     pub mod adapter {
+        pub use crate::adapter::core::concat::add_into_epub;
         pub use crate::adapter::core::epub_to_mobi;
         pub use crate::adapter::core::mobi_to_epub;
-        pub use crate::adapter::core::concat::add_into_epub;
     }
 }
