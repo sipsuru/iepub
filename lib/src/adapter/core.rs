@@ -74,18 +74,21 @@ pub fn mobi_to_epub(mobi: &mut MobiBook) -> IResult<EpubBook> {
     let assets = mobi.assets().as_slice();
     // 添加文本
     for chap in mobi.chapters() {
-        let nav: Vec<&str> =
-            get_mobi_chapter_nav(chap, mobi.nav().as_slice())
-                .unwrap()
-                .iter()
-                .map(|f| f.title())
-                .collect();
+        let nav: Vec<&str> = get_mobi_chapter_nav(chap, mobi.nav().as_slice())
+            .unwrap()
+            .iter()
+            .map(|f| f.title())
+            .collect();
 
         builder = builder.add_chapter(
             EpubHtml::default()
                 .with_title(chap.title())
                 .with_file_name(format!("{}.xhtml", nav.join("/")).as_str())
-                .with_data(convert_mobi_html_data(nav.len() - 1, chap.string_data().as_str(), assets)),
+                .with_data(convert_mobi_html_data(
+                    nav.len() - 1,
+                    chap.string_data().as_str(),
+                    assets,
+                )),
         );
     }
 
@@ -310,9 +313,7 @@ pub fn epub_to_mobi(epub: &mut EpubBook) -> IResult<MobiBook> {
         .map(|(index, html)| {
             let file_name = html.file_name().to_string();
             (
-                MobiHtml::new(index)
-                .with_title(html.title())
-                .with_data(
+                MobiHtml::new(index).with_title(html.title()).with_data(
                     html.data_mut()
                         .map(|v| convert_epub_html_img(v, file_name.as_str()))
                         // .unwrap_or_else(||Err(FromUtf8Error { bytes: Vec::n, error: e }))
@@ -653,9 +654,11 @@ mod tests {
 
     #[test]
     fn test_epub_to_mobi() {
-        let resp = crate::common::tests::get_req("https://www.rust-lang.org/static/images/user-logos/yelp.png")
-            .send()
-            .unwrap();
+        let resp = crate::common::tests::get_req(
+            "https://www.rust-lang.org/static/images/user-logos/yelp.png",
+        )
+        .send()
+        .unwrap();
         let img = resp.as_bytes().to_vec();
         let img2 = crate::common::tests::get_req("https://blog.rust-lang.org/images/2024-05-17-enabling-rust-lld-on-linux/ripgrep-comparison.png").send().unwrap().as_bytes().to_vec();
 
@@ -760,8 +763,11 @@ mod tests {
         let v = convert_epub_html_img(html.as_bytes(), "/parent1/parent.xhtml");
 
         println!("{}", String::from_utf8(v.clone()).unwrap());
-        assert_eq!(r#"<img class="imagecontent lazyload" data-src='https://img3.readpai.com/2/2356/121744/86275.jpg' src='/temp/2356/images/www.bilinovel.com/2356/0/86275.jpg'/><img class="imagecontent lazyload" data-src='https://img3.readpai.com/2/2356/121744/86276.jpg' src='/temp/2356/images/www.bilinovel.com/2356/0/86276.jpg'/><img class="imagecontent lazyload" data-src='https://img3.readpai.com/2/2356/121744/86277.jpg' src='/temp/2356/images/www.bilinovel.com/2356/0/86277.jpg'/><img class="imagecontent lazyload" data-src='https://img3.readpai.com/2/2356/121744/86278.jpg' src='/temp/2356/images/www.bilinovel.com/2356/0/86278.jpg'/><img class="imagecontent lazyload" data-src='https://img3.readpai.com/2/2356/121744/86279.jpg' src='/temp/2356/images/www.bilinovel.com/2356/0/86279.jpg'/>
+        assert_eq!(
+            r#"<img class="imagecontent lazyload" data-src='https://img3.readpai.com/2/2356/121744/86275.jpg' src='/temp/2356/images/www.bilinovel.com/2356/0/86275.jpg'/><img class="imagecontent lazyload" data-src='https://img3.readpai.com/2/2356/121744/86276.jpg' src='/temp/2356/images/www.bilinovel.com/2356/0/86276.jpg'/><img class="imagecontent lazyload" data-src='https://img3.readpai.com/2/2356/121744/86277.jpg' src='/temp/2356/images/www.bilinovel.com/2356/0/86277.jpg'/><img class="imagecontent lazyload" data-src='https://img3.readpai.com/2/2356/121744/86278.jpg' src='/temp/2356/images/www.bilinovel.com/2356/0/86278.jpg'/><img class="imagecontent lazyload" data-src='https://img3.readpai.com/2/2356/121744/86279.jpg' src='/temp/2356/images/www.bilinovel.com/2356/0/86279.jpg'/>
 </div>
-  </body></html>"#,String::from_utf8(v).unwrap());
+  </body></html>"#,
+            String::from_utf8(v).unwrap()
+        );
     }
 }

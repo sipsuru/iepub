@@ -5,7 +5,9 @@
 //!
 
 use std::{
-    borrow::Cow, collections::HashMap, io::{BufReader, Read, Seek, SeekFrom}
+    borrow::Cow,
+    collections::HashMap,
+    io::{BufReader, Read, Seek, SeekFrom},
 };
 
 use crate::{

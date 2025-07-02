@@ -221,7 +221,12 @@ pub(crate) mod epub {
                         "format" => builder = builder.with_format(v),
                         "subject" => builder = builder.with_subject(v),
                         "contributor" => builder = builder.with_contributor(v),
-                        "cover"=> builder = builder.cover("image/cover.png", std::fs::read(v).expect("read cover error")),
+                        "cover" => {
+                            builder = builder.cover(
+                                "image/cover.png",
+                                std::fs::read(v).expect("read cover error"),
+                            )
+                        }
                         _ => {}
                     }
                 }
@@ -1058,7 +1063,8 @@ pub(crate) mod mobi {
                                 create_dir(dir.as_str());
                                 write_file(
                                     format!("{dir}/{:02}.{}.html", index, chap.title()).as_str(),
-                                    self.format_html(chap.string_data().as_str(), chap.title()).as_bytes(),
+                                    self.format_html(chap.string_data().as_str(), chap.title())
+                                        .as_bytes(),
                                 );
                             }
                         }

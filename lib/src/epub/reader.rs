@@ -995,7 +995,10 @@ html
         // println!("{}", String::from_utf8( chap.next().unwrap().data().unwrap().to_vec()).unwrap());
         chap.next();
         chap.next();
-        assert_eq!(9343, chap.next().unwrap().data_mut().unwrap().to_vec().len());
+        assert_eq!(
+            9343,
+            chap.next().unwrap().data_mut().unwrap().to_vec().len()
+        );
 
         assert!(book.get_chapter("s04.xhtml#pgepubid00536").is_some());
         // assert!(chap.next().is_some());
@@ -1018,9 +1021,16 @@ html
         assert_ne!(0, epub.chapters().len());
         assert_ne!(
             0,
-            String::from_utf8(epub.chapters_mut().next().unwrap().data_mut().unwrap().to_vec())
-                .unwrap()
-                .len()
+            String::from_utf8(
+                epub.chapters_mut()
+                    .next()
+                    .unwrap()
+                    .data_mut()
+                    .unwrap()
+                    .to_vec()
+            )
+            .unwrap()
+            .len()
         );
     }
     /// 测试epub3的读取资源文件

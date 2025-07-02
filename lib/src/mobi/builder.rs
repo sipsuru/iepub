@@ -307,9 +307,11 @@ mod tests {
     #[test]
     #[ignore = "temp"]
     fn test() {
-        let resp = crate::common::tests::get_req("https://www.rust-lang.org/static/images/user-logos/yelp.png")
-            .send()
-            .unwrap();
+        let resp = crate::common::tests::get_req(
+            "https://www.rust-lang.org/static/images/user-logos/yelp.png",
+        )
+        .send()
+        .unwrap();
         let img = resp.as_bytes().to_vec();
         let img2 = crate::common::tests::get_req("https://blog.rust-lang.org/images/2024-05-17-enabling-rust-lld-on-linux/ripgrep-comparison.png").send().unwrap().as_bytes().to_vec();
 
