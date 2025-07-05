@@ -281,20 +281,33 @@ pub(crate) fn do_to_opf(book: &mut EpubBook, generator: &str) -> IResult<String>
             .with_attribute(("media-type", "application/xhtml+xml"))
             .write_empty()?;
     }
-
-    for (index, ele) in book.chapters().enumerate() {
+    for (index, ele) in book.assets().enumerate() {
         xml.create_element("item")
-            .with_attribute(("href", ele.file_name()))
-            .with_attribute(("id", format!("chap_{}", index).as_str()))
-            .with_attribute(("media-type", "application/xhtml+xml"))
+            .with_attribute((
+                "href",
+                if ele.file_name().starts_with("/") {
+                    &ele.file_name()[1..]
+                } else {
+                    ele.file_name()
+                },
+            ))
+            .with_attribute(("id", format!("assets_{}", index).as_str()))
+            .with_attribute(("media-type", get_media_type(ele.file_name()).as_str()))
             .write_empty()?;
     }
 
-    for (index, ele) in book.assets().enumerate() {
+    for (index, ele) in book.chapters().enumerate() {
         xml.create_element("item")
-            .with_attribute(("href", ele.file_name()))
-            .with_attribute(("id", format!("assets_{}", index).as_str()))
-            .with_attribute(("media-type", get_media_type(ele.file_name()).as_str()))
+            .with_attribute((
+                "href",
+                if ele.file_name().starts_with("/") {
+                    &ele.file_name()[1..]
+                } else {
+                    ele.file_name()
+                },
+            ))
+            .with_attribute(("id", format!("chap_{}", index).as_str()))
+            .with_attribute(("media-type", "application/xhtml+xml"))
             .write_empty()?;
     }
 
@@ -607,13 +620,14 @@ ok
 
         let mut n3 = EpubNav::default();
         n3.set_title("第一卷 第二章");
-        n3.set_file_name("1.xhtml");
+        n3.set_file_name("/1.xhtml");
         n1.push(n2);
 
         epub.add_nav(n);
         epub.add_nav(n1);
 
-        epub.add_assets(EpubAssets::default());
+        epub.add_assets(EpubAssets::default().with_file_name("1.png"));
+        epub.add_assets(EpubAssets::default().with_file_name("/2.png"));
 
         epub.add_chapter(EpubHtml::default());
 
@@ -631,7 +645,7 @@ ok
         let res = to_opf(&mut epub, "epub-rs");
         println!("[{}]", res);
 
-        let ass: &str = r###"<?xml version="1.0" encoding="utf-8"?><package xmlns="http://www.idpf.org/2007/opf" unique-identifier="id" version="3.0" prefix="rendition: http://www.idpf.org/vocab/rendition/#"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf"><meta property="dcterms:modified">2024-06-28T03:07:07UTC</meta><dc:date id="date">2024-06-28T08:07:07UTC</dc:date><meta name="generator" content="epub-rs"/><dc:identifier id="id">identifier</dc:identifier><dc:title>中文</dc:title><dc:creator id="creator">作者</dc:creator><dc:description>description</dc:description><meta property="desc">description</meta><meta name="cover" content="cover-img"/><dc:format id="format">format</dc:format><dc:publisher id="publisher">publisher</dc:publisher><dc:subject id="subject">subject</dc:subject><dc:contributor id="contributor">contributor</dc:contributor><meta ok="ov">new</meta></metadata><manifest><item href="toc.ncx" id="ncx" media-type="application/x-dtbncx+xml"/><item href="nav.xhtml" id="toc" media-type="application/xhtml+xml" properties="nav"/><item href="" id="cover-img" media-type="" properties="cover-image"/><item href="cover.xhtml" id="cover" media-type="application/xhtml+xml"/><item href="" id="chap_0" media-type="application/xhtml+xml"/><item href="" id="assets_0" media-type=""/></manifest><spine toc="ncx"><itemref idref="toc"/><itemref idref="chap_0"/></spine></package>"###;
+        let ass: &str = r###"<?xml version="1.0" encoding="utf-8"?><package xmlns="http://www.idpf.org/2007/opf" unique-identifier="id" version="3.0" prefix="rendition: http://www.idpf.org/vocab/rendition/#"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf"><meta property="dcterms:modified">2024-06-28T03:07:07UTC</meta><dc:date id="date">2024-06-28T08:07:07UTC</dc:date><meta name="generator" content="epub-rs"/><dc:identifier id="id">identifier</dc:identifier><dc:title>中文</dc:title><dc:creator id="creator">作者</dc:creator><dc:description>description</dc:description><meta property="desc">description</meta><meta name="cover" content="cover-img"/><dc:format id="format">format</dc:format><dc:publisher id="publisher">publisher</dc:publisher><dc:subject id="subject">subject</dc:subject><dc:contributor id="contributor">contributor</dc:contributor><meta ok="ov">new</meta></metadata><manifest><item href="toc.ncx" id="ncx" media-type="application/x-dtbncx+xml"/><item href="nav.xhtml" id="toc" media-type="application/xhtml+xml" properties="nav"/><item href="" id="cover-img" media-type="" properties="cover-image"/><item href="cover.xhtml" id="cover" media-type="application/xhtml+xml"/><item href="1.png" id="assets_0" media-type="image/png"/><item href="2.png" id="assets_1" media-type="image/png"/><item href="" id="chap_0" media-type="application/xhtml+xml"/></manifest><spine toc="ncx"><itemref idref="toc"/><itemref idref="chap_0"/></spine></package>"###;
         assert_eq!(ass, res.as_str());
     }
 
