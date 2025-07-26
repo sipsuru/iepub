@@ -1,6 +1,7 @@
 use std::{
     fs::File,
     io::{Seek, Write},
+    path::Path,
 };
 
 use zip::ZipWriter;
@@ -54,7 +55,11 @@ static CONTAINER_XML: &str = r#"<?xml version='1.0' encoding='utf-8'?>
 
 impl EpubWriter<File> {
     /// 写入文件
-    pub fn write_to_file(file: &str, book: &mut EpubBook, append_title: bool) -> IResult<()> {
+    pub fn write_to_file<P: AsRef<Path>>(
+        file: P,
+        book: &mut EpubBook,
+        append_title: bool,
+    ) -> IResult<()> {
         std::fs::OpenOptions::new()
             .create(true)
             .truncate(true)
@@ -127,12 +132,12 @@ impl<T: Write + Seek> EpubWriter<T> {
     fn write_assets(&mut self, book: &mut EpubBook) -> IResult<()> {
         let m = book.assets_mut();
         for ele in m {
-            if ele.data().is_none() {
+            if ele.data_mut().is_none() {
                 continue;
             }
             self.write_file(
                 format!("{}{}", common::EPUB, ele.file_name()).as_str(),
-                ele.data().unwrap(),
+                ele.data_mut().unwrap(),
             )?;
         }
         Ok(())
@@ -177,7 +182,7 @@ impl<T: Write + Seek> EpubWriter<T> {
         if let Some(cover) = book.cover_mut() {
             self.write_file(
                 format!("{}{}", common::EPUB, cover.file_name()).as_str(),
-                cover.data().as_ref().unwrap(),
+                cover.data_mut().as_ref().unwrap(),
             )?;
 
             let mut html = EpubHtml::default();

@@ -13,7 +13,7 @@ pub struct Path {
 
 impl Path {
     /// 基于操作系统解析路径
-    pub fn system(path: &str) -> Self {
+    pub fn system<T: AsRef<str>>(path: T) -> Self {
         #[cfg(target_os = "windows")]
         let sep = "\\";
         #[cfg(not(target_os = "windows"))]
@@ -31,10 +31,10 @@ impl Path {
         .join(path)
     }
 
-    pub fn join(&self, path: &str) -> Self {
+    pub fn join<T: AsRef<str>>(&self, path: T) -> Self {
         let mut s = self.clone();
 
-        let v = path.split(s.sep.as_str());
+        let v = path.as_ref().split(s.sep.as_str());
         for ele in v {
             if ele == ".." {
                 s.paths.pop();
@@ -79,7 +79,7 @@ impl Path {
     ///
     /// # Warn
     /// 当前路径应该是一个目录，且不能以 / 结尾
-    pub fn releative(&self, target: &str) -> String {
+    pub fn releative<T: AsRef<str>>(&self, target: T) -> String {
         // 首先往上走到根目录，然后再往下，如果没有分叉就不添加路径
 
         let mut target = Self::system(target);

@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::common::{time_format, IError, IResult};
 
 use super::{
@@ -69,45 +71,45 @@ impl MobiBuilder {
         }
     }
 
-    pub fn with_title(mut self, title: &str) -> Self {
+    pub fn with_title<T: AsRef<str>>(mut self, title: T) -> Self {
         self.book.set_title(title);
         self
     }
 
-    pub fn with_identifier(mut self, identifier: &str) -> Self {
+    pub fn with_identifier<T: AsRef<str>>(mut self, identifier: T) -> Self {
         self.book.set_identifier(identifier);
         self
     }
-    pub fn with_creator(mut self, creator: &str) -> Self {
+    pub fn with_creator<T: AsRef<str>>(mut self, creator: T) -> Self {
         self.book.set_creator(creator);
         self
     }
-    pub fn with_description(mut self, description: &str) -> Self {
-        self.book.set_description(description);
+    pub fn with_description<T: AsRef<str>>(mut self, description: T) -> Self {
+        self.book.set_description(description.as_ref());
         self
     }
-    pub fn with_contributor(mut self, contributor: &str) -> Self {
+    pub fn with_contributor<T: AsRef<str>>(mut self, contributor: T) -> Self {
         self.book.set_contributor(contributor);
         self
     }
-    pub fn with_date(mut self, date: &str) -> Self {
+    pub fn with_date<T: AsRef<str>>(mut self, date: T) -> Self {
         self.book.set_date(date);
         self
     }
-    pub fn with_format(mut self, format: &str) -> Self {
+    pub fn with_format<T: AsRef<str>>(mut self, format: T) -> Self {
         self.book.set_format(format);
         self
     }
-    pub fn with_publisher(mut self, publisher: &str) -> Self {
+    pub fn with_publisher<T: AsRef<str>>(mut self, publisher: T) -> Self {
         self.book.set_publisher(publisher);
         self
     }
-    pub fn with_subject(mut self, subject: &str) -> Self {
+    pub fn with_subject<T: AsRef<str>>(mut self, subject: T) -> Self {
         self.book.set_subject(subject);
         self
     }
 
-    pub fn with_last_modify(mut self, last_modify: &str) -> Self {
+    pub fn with_last_modify<T: AsRef<str>>(mut self, last_modify: T) -> Self {
         self.book.set_last_modify(last_modify);
         self
     }
@@ -129,8 +131,8 @@ impl MobiBuilder {
     }
 
     /// 设置字体文件路径
-    pub fn with_font(mut self, font_file: &str) -> Self {
-        self.font = Some(font_file.to_string());
+    pub fn with_font<T: Into<String>>(mut self, font_file: T) -> Self {
+        self.font = Some(font_file.into());
         self
     }
 
@@ -144,9 +146,9 @@ impl MobiBuilder {
     /// 添加资源文件
     /// [file_name] 可以随便填写，但是务必和章节里的img标签的src属性值保持一致，否则会导致图片不显示
     ///
-    pub fn add_assets(mut self, file_name: &str, data: Vec<u8>) -> Self {
+    pub fn add_assets<T: AsRef<str>>(mut self, file_name: T, data: Vec<u8>) -> Self {
         self.book
-            .add_assets(MobiAssets::new(data).with_file_name(file_name));
+            .add_assets(MobiAssets::new(data).with_file_name(file_name.as_ref()));
         self
     }
 
@@ -254,7 +256,7 @@ impl MobiBuilder {
     ///
     /// 输出到文件
     ///
-    pub fn file(mut self, file: &str) -> IResult<()> {
+    pub fn file<T: AsRef<Path>>(mut self, file: T) -> IResult<()> {
         self.gen_last_modify();
         self.gen_nav();
         self.gen_cover()?;

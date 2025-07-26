@@ -3,6 +3,7 @@ use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::fs::File;
 use std::io::{BufWriter, Write};
+use std::path::Path;
 use std::{
     io::{Read, Seek},
     ops::Deref,
@@ -790,7 +791,7 @@ pub fn read_from_vec(data: Vec<u8>) -> IResult<EpubBook> {
 ///
 /// 从文件读取epub
 ///
-pub fn read_from_file(file: &str) -> IResult<EpubBook> {
+pub fn read_from_file<P: AsRef<Path>>(file: P) -> IResult<EpubBook> {
     read_from_reader(std::fs::File::open(file)?)
 }
 
@@ -893,7 +894,7 @@ mod tests {
         assert_eq!(b.assets().len() + 2, nb.assets().len());
         // 多出来的一个是导航 nav.xhtml，还有toc.ncx
         assert_eq!(b.chapters().len() + 1, nb.chapters().len());
-        assert_ne!(0, b.assets_mut().next().unwrap().data().unwrap().len());
+        assert_ne!(0, b.assets_mut().next().unwrap().data_mut().unwrap().len());
 
         // 读取html
         let chapter = nb.get_chapter_mut("0.xhtml");
@@ -922,7 +923,7 @@ html
         for a in nb.assets_mut() {
             println!(
                 "ass=[{}]",
-                String::from_utf8(a.data().unwrap().to_vec()).unwrap()
+                String::from_utf8(a.data_mut().unwrap().to_vec()).unwrap()
             );
         }
 
@@ -1043,7 +1044,7 @@ html
         let mut book = read_from_file(name).unwrap();
         assert_ne!(0, book.assets().len());
         for ele in book.assets_mut() {
-            assert_ne!(0, ele.data().unwrap().len());
+            assert_ne!(0, ele.data_mut().unwrap().len());
         }
     }
 }

@@ -201,7 +201,7 @@ pub(crate) mod epub {
 
                 if let Some(c) = book.cover_mut() {
                     let f = c.file_name().to_string();
-                    if let Some(v) = c.data() {
+                    if let Some(v) = c.data_mut() {
                         builder = builder.cover(f.as_str(), v.to_vec());
                     }
                 }
@@ -393,7 +393,7 @@ pub(crate) mod epub {
                     }
                     msg!("writing cover to {}", path);
 
-                    let data = cover.data().unwrap();
+                    let data = cover.data_mut().unwrap();
                     write_file(path.as_str(), data);
                 }
 
@@ -408,7 +408,7 @@ pub(crate) mod epub {
                         continue;
                     }
                     msg!("writing cover to {}", path);
-                    write_file(path, cover.data().as_ref().unwrap());
+                    write_file(path, cover.data_mut().as_ref().unwrap());
                 }
             }
         },
@@ -542,7 +542,7 @@ pub(crate) mod epub {
                             }
                             msg!("writing file to {}", file);
                             // 写入文件
-                            write_file(&file, ele.data().unwrap());
+                            write_file(&file, ele.data_mut().unwrap());
                         }
                     }
                 }

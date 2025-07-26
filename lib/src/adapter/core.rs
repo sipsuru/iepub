@@ -332,7 +332,7 @@ pub fn epub_to_mobi(epub: &mut EpubBook) -> IResult<MobiBook> {
     }
     // 静态资源
     for ele in epub.assets_mut() {
-        let data = ele.data().ok_or(IError::Unknown)?.to_vec();
+        let data = ele.data_mut().ok_or(IError::Unknown)?.to_vec();
         builder = builder.add_assets(ele.file_name(), data);
     }
     // 添加文本
@@ -341,7 +341,7 @@ pub fn epub_to_mobi(epub: &mut EpubBook) -> IResult<MobiBook> {
     }
 
     if let Some(c) = epub.cover_mut() {
-        builder = builder.cover(c.data().ok_or(IError::Unknown)?.to_vec());
+        builder = builder.cover(c.data_mut().ok_or(IError::Unknown)?.to_vec());
     }
 
     builder.book()
@@ -440,7 +440,7 @@ pub mod concat {
                 // 暂不考虑非图片资源
                 continue;
             }
-            let f = ele.data().unwrap().to_vec();
+            let f = ele.data_mut().unwrap().to_vec();
             asset_len += 1;
 
             let sufix = ele.file_name().find(|f| f == '.').unwrap_or(0);

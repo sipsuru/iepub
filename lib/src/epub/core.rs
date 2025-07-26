@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::{Debug, Display};
 use std::io::Write;
-use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
 use super::common::{self};
@@ -151,12 +150,11 @@ impl EpubHtml {
         self.raw_data = None;
     }
 
-    pub fn set_title(&mut self, title: &str) {
-        self.title.clear();
-        self.title.push_str(title);
+    pub fn set_title<T: Into<String>>(&mut self, title: T) {
+        self.title = title.into();
     }
 
-    pub fn with_title(mut self, title: &str) -> Self {
+    pub fn with_title<T: Into<String>>(mut self, title: T) -> Self {
         self.set_title(title);
 
         self
@@ -166,10 +164,10 @@ impl EpubHtml {
         &self.title
     }
 
-    pub fn set_css(&mut self, css: &str) {
-        self.css = Some(String::from(css));
+    pub fn set_css<T: Into<String>>(&mut self, css: T) {
+        self.css = Some(css.into());
     }
-    pub fn with_css(mut self, css: &str) -> Self {
+    pub fn with_css<T: Into<String>>(mut self, css: T) -> Self {
         self.set_css(css);
         self
     }
@@ -177,8 +175,8 @@ impl EpubHtml {
         self.css.as_deref()
     }
 
-    fn set_language(&mut self, lang: &str) {
-        self.lang = String::from_str(lang).unwrap();
+    fn set_language<T: Into<String>>(&mut self, lang: T) {
+        self.lang = lang.into();
     }
 
     pub fn links(&self) -> Option<std::slice::Iter<EpubLink>> {
@@ -211,11 +209,15 @@ pub struct EpubAssets {
 }
 
 impl EpubAssets {
-    pub fn with_version(&mut self, version: &str) {
-        self.version.push_str(version);
+    pub fn with_version<T: Into<String>>(&mut self, version: T) {
+        self.version = version.into();
     }
 
-    pub fn data(&mut self) -> Option<&[u8]> {
+    pub fn data(&self) -> Option<&[u8]> {
+        self._data.as_deref()
+    }
+
+    pub fn data_mut(&mut self) -> Option<&[u8]> {
         let mut f = String::from(self._file_name.as_str());
         if self._data.is_none() && self.reader.is_some() && !f.is_empty() {
             let prefixs = vec!["", common::EPUB, common::EPUB3];
@@ -236,21 +238,24 @@ impl EpubAssets {
     }
 
     pub fn write_to<W: Write>(&mut self, writer: &mut W) -> IResult<()> {
-        if let Some(data) = self.data() {
+        if let Some(data) = self.data_mut() {
             writer.write_all(&data)?;
             writer.flush()?;
         }
         Ok(())
     }
 
-    pub fn save_to(&mut self, file_path: &str) -> IResult<()> {
-        let mut f = String::from(self._file_name.as_str());
+    pub fn save_to<T: AsRef<str>>(&mut self, file_path: T) -> IResult<()> {
+        let mut f: String = self._file_name.clone();
         if self.reader.is_some() && !f.is_empty() {
             let prefixs = vec!["", common::EPUB, common::EPUB3];
             for prefix in prefixs.iter() {
                 let s = self.reader.as_mut().unwrap();
                 f = format!("{prefix}{}", self._file_name);
-                let d: Result<(), IError> = s.lock().unwrap().read_to_path(f.as_str(), file_path);
+                let d: Result<(), IError> = s
+                    .lock()
+                    .unwrap()
+                    .read_to_path(f.as_str(), file_path.as_ref());
                 if d.is_ok() {
                     break;
                 }
@@ -335,11 +340,10 @@ impl EpubNav {
     pub fn title(&self) -> &str {
         &self.title
     }
-    pub fn set_title(&mut self, title: &str) {
-        self.title.clear();
-        self.title.push_str(title);
+    pub fn set_title<T: Into<String>>(&mut self, title: T) {
+        self.title = title.into();
     }
-    pub fn with_title(mut self, title: &str) -> Self {
+    pub fn with_title<T: Into<String>>(mut self, title: T) -> Self {
         self.set_title(title);
         self
     }
@@ -370,25 +374,21 @@ pub struct EpubMetaData {
 }
 
 impl EpubMetaData {
-    pub fn with_attr(mut self, key: &str, value: &str) -> Self {
+    pub fn with_attr<K: Into<String>>(mut self, key: K, value: K) -> Self {
         self.push_attr(key, value);
         self
     }
-    pub fn push_attr(&mut self, key: &str, value: &str) {
-        self.attr.insert(String::from(key), String::from(value));
+
+    pub fn push_attr<T: Into<String>>(&mut self, key: T, value: T) {
+        self.attr.insert(key.into(), value.into());
     }
-    pub fn with_text(mut self, text: &str) -> Self {
+    pub fn with_text<T: Into<String>>(mut self, text: T) -> Self {
         self.set_text(text);
         self
     }
 
-    pub fn set_text(&mut self, text: &str) {
-        if let Some(t) = &mut self.text {
-            t.clear();
-            t.push_str(text);
-        } else {
-            self.text = Some(String::from(text));
-        }
+    pub fn set_text<T: Into<String>>(&mut self, text: T) {
+        self.text = Some(text.into());
     }
 
     pub fn text(&self) -> Option<&str> {
@@ -399,8 +399,8 @@ impl EpubMetaData {
         self.attr.iter()
     }
 
-    pub fn get_attr(&self, key: &str) -> Option<&String> {
-        self.attr.get(key)
+    pub fn get_attr<T: AsRef<str>>(&self, key: T) -> Option<&String> {
+        self.attr.get(key.as_ref())
     }
 }
 
@@ -470,26 +470,26 @@ impl EpubBook {
 
 // 元数据
 impl EpubBook {
-    pub fn set_title(&mut self, title: &str) {
+    pub fn set_title<T: AsRef<str>>(&mut self, title: T) {
         self.info.title.clear();
-        self.info.title.push_str(title);
+        self.info.title.push_str(title.as_ref());
     }
     pub fn title(&self) -> &str {
         self.info.title.as_str()
     }
-    pub fn with_title(mut self, title: &str) -> Self {
-        self.set_title(title);
+    pub fn with_title<T: AsRef<str>>(mut self, title: T) -> Self {
+        self.set_title(title.as_ref());
         self
     }
     pub fn identifier(&self) -> &str {
         self.info.identifier.as_str()
     }
-    pub fn set_identifier(&mut self, identifier: &str) {
+    pub fn set_identifier<T: AsRef<str>>(&mut self, identifier: T) {
         self.info.identifier.clear();
-        self.info.identifier.push_str(identifier);
+        self.info.identifier.push_str(identifier.as_ref());
     }
-    pub fn with_identifier(mut self, identifier: &str) -> Self {
-        self.set_identifier(identifier);
+    pub fn with_identifier<T: AsRef<str>>(mut self, identifier: T) -> Self {
+        self.set_identifier(identifier.as_ref());
         self
     }
 
@@ -549,8 +549,10 @@ impl EpubBook {
     ///
     /// [file_name] 不需要带有 EPUB 目录
     ///
-    pub fn get_assets(&self, file_name: &str) -> Option<&EpubAssets> {
-        self.assets.iter().find(|s| s.file_name() == file_name)
+    pub fn get_assets<T: AsRef<str>>(&self, file_name: T) -> Option<&EpubAssets> {
+        self.assets
+            .iter()
+            .find(|s| s.file_name() == file_name.as_ref())
     }
 
     ///
@@ -558,8 +560,10 @@ impl EpubBook {
     ///
     /// [file_name] 不需要带有 EPUB 目录
     ///
-    pub fn get_assets_mut(&mut self, file_name: &str) -> Option<&mut EpubAssets> {
-        self.assets.iter_mut().find(|s| s.file_name() == file_name)
+    pub fn get_assets_mut<T: AsRef<str>>(&mut self, file_name: T) -> Option<&mut EpubAssets> {
+        self.assets
+            .iter_mut()
+            .find(|s| s.file_name() == file_name.as_ref())
     }
 
     pub fn assets(&self) -> std::slice::Iter<EpubAssets> {
@@ -590,9 +594,9 @@ impl EpubBook {
     ///
     /// [file_name] 不需要带有 EPUB 目录
     ///
-    pub fn get_chapter(&self, file_name: &str) -> Option<&EpubHtml> {
+    pub fn get_chapter<T: AsRef<str>>(&self, file_name: T) -> Option<&EpubHtml> {
         self.chapters.iter().find(|s| {
-            return s.file_name() == file_name;
+            return s.file_name() == file_name.as_ref();
         })
     }
 
@@ -601,15 +605,15 @@ impl EpubBook {
     ///
     /// [file_name] 不需要带有 EPUB 目录
     ///
-    pub fn get_chapter_mut(&mut self, file_name: &str) -> Option<&mut EpubHtml> {
+    pub fn get_chapter_mut<T: AsRef<str>>(&mut self, file_name: T) -> Option<&mut EpubHtml> {
         self.chapters.iter_mut().find(|s| {
-            return s.file_name() == file_name;
+            return s.file_name() == file_name.as_ref();
         })
     }
 
-    pub fn set_version(&mut self, version: &str) {
+    pub fn set_version<T: AsRef<str>>(&mut self, version: T) {
         self.version.clear();
-        self.version.push_str(version);
+        self.version.push_str(version.as_ref());
     }
 
     pub fn version(&self) -> &str {
@@ -789,7 +793,7 @@ mod tests {
 
         // EpubWriter::write_to_file("file", &mut book).unwrap();
 
-        EpubWriter::write_to_mem(&mut book, true).unwrap();
+        EpubWriter::write_to_file("12.epub", &mut book, true).unwrap();
 
         // EpubWriter::<std::fs::File>write_to_file("../target/test.epub", &mut book).expect("write error");
     }
