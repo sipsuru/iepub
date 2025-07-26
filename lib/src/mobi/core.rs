@@ -50,8 +50,8 @@ impl MobiHtml {
         self.data = value;
     }
 
-    pub fn with_title(mut self, value: &str) -> Self {
-        self.title = value.to_string();
+    pub fn with_title<T: Into<String>>(mut self, value: T) -> Self {
+        self.title = value.into();
         self
     }
 }
@@ -106,8 +106,8 @@ impl MobiNav {
         self
     }
 
-    pub fn with_title(mut self, title: &str) -> Self {
-        self.title = title.to_string();
+    pub fn with_title<T: Into<String>>(mut self, title: T) -> Self {
+        self.title = title.into();
         self
     }
 
@@ -171,8 +171,8 @@ impl MobiAssets {
         &self._file_name
     }
 
-    pub fn with_file_name(mut self, file_name: &str) -> Self {
-        self._file_name = file_name.to_string();
+    pub fn with_file_name<T: Into<String>>(mut self, file_name: T) -> Self {
+        self._file_name = file_name.into();
         self
     }
 }
@@ -215,25 +215,25 @@ impl MobiBook {
     iepub_derive::option_string_method!(last_modify);
     iepub_derive::option_string_method!(generator);
 
-    pub fn set_title(&mut self, title: &str) {
+    pub fn set_title<T: AsRef<str>>(&mut self, title: T) {
         self.info.title.clear();
-        self.info.title.push_str(title);
+        self.info.title.push_str(title.as_ref());
     }
     pub fn title(&self) -> &str {
         self.info.title.as_str()
     }
-    pub fn with_title(mut self, title: &str) -> Self {
+    pub fn with_title<T: AsRef<str>>(mut self, title: T) -> Self {
         self.set_title(title);
         self
     }
     pub fn identifier(&self) -> &str {
         self.info.identifier.as_str()
     }
-    pub fn set_identifier(&mut self, identifier: &str) {
+    pub fn set_identifier<T: AsRef<str>>(&mut self, identifier: T) {
         self.info.identifier.clear();
-        self.info.identifier.push_str(identifier);
+        self.info.identifier.push_str(identifier.as_ref());
     }
-    pub fn with_identifier(mut self, identifier: &str) -> Self {
+    pub fn with_identifier<T: AsRef<str>>(mut self, identifier: T) -> Self {
         self.set_identifier(identifier);
         self
     }

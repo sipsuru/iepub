@@ -1,7 +1,8 @@
 use std::{
     cmp::min,
     collections::HashMap,
-    io::{BufWriter, Cursor, Seek, Write},
+    io::{BufWriter, Seek, Write},
+    path::Path,
 };
 
 use crate::{
@@ -408,13 +409,17 @@ pub struct MobiWriter<T: Write + Seek> {
 
 impl MobiWriter<std::fs::File> {
     /// 写入文件
-    pub fn write_to_file(file: &str, book: &MobiBook, append_title: bool) -> IResult<()> {
+    pub fn write_to_file<P: AsRef<Path>>(
+        file: P,
+        book: &MobiBook,
+        append_title: bool,
+    ) -> IResult<()> {
         Self::write_to_file_with_ident(file, book, append_title, 0)
     }
 
     /// 写入文件
-    pub fn write_to_file_with_ident(
-        file: &str,
+    pub fn write_to_file_with_ident<P: AsRef<Path>>(
+        file: P,
         book: &MobiBook,
         append_title: bool,
         ident: usize,

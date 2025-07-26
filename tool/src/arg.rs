@@ -95,10 +95,10 @@ impl Display for OptionDef {
 }
 
 impl OptionDef {
-    pub(crate) fn create(key: &str, desc: &str, t: OptionType, required: bool) -> Self {
+    pub(crate) fn create<T: Into<String>>(key: T, desc: T, t: OptionType, required: bool) -> Self {
         OptionDef {
-            key: key.to_string(),
-            desc: desc.to_string(),
+            key: key.into(),
+            desc: desc.into(),
             _type: t,
             required,
         }

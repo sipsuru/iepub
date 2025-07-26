@@ -20,16 +20,16 @@ pub fn option_string_method(input: TokenStream) -> TokenStream {
     let s = input.to_string();
     let v: Vec<&str> = s.split(',').collect();
 
-    let m = r#"pub fn set_{method}(&mut self, {method}: &str) {
+    let m = r#"pub fn set_{method}<T:  AsRef<str>>(&mut self, {method}: T) {
         if let Some( c) = &mut self.{prefix}{method} {
             c.clear();
-            c.push_str({method});
+            c.push_str({method}.as_ref());
         } else {
-            self.{prefix}{method} = Some(String::from({method}));
+            self.{prefix}{method} = Some(String::from({method}.as_ref()));
         }
     }
-    pub fn with_{method}(mut self, {method}: &str) ->Self {
-        self.set_{method}({method});
+    pub fn with_{method}<T:  AsRef<str>>(mut self, {method}: T) ->Self {
+        self.set_{method}({method}.as_ref());
         self
     }
     pub fn {method}(&self) -> Option<&str> {

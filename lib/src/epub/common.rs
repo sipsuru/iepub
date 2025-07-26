@@ -45,17 +45,15 @@ macro_rules! epub_base_field{
                 ///
                 /// 设置文件路径
                 ///
-                pub fn set_file_name(&mut self,value: &str){
-                    self._file_name.clear();
-                    self._file_name.push_str(value);
+                pub fn set_file_name<T:Into<String>>(&mut self,value: T){
+                    self._file_name = value.into();
                 }
 
                 pub fn id(&self)->&str{
                     self.id.as_str()
                 }
-                pub fn set_id(&mut self,id:&str){
-                    self.id.clear();
-                    self.id.push_str(id);
+                pub fn set_id<T:Into<String>>(&mut self,id: T){
+                    self.id = id.into();
                 }
 
                 pub fn set_data(&mut self, data: Vec<u8>) {
@@ -66,7 +64,7 @@ macro_rules! epub_base_field{
                         self._data = Some(data);
                     // }
                 }
-                pub fn with_file_name(mut self,value:&str)->Self{
+                pub fn with_file_name<T: Into<String>>(mut self,value: T)->Self{
                     self.set_file_name(value);
                     self
                 }

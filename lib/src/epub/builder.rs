@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::common::time_format;
 use crate::prelude::*;
 
@@ -47,50 +49,50 @@ impl EpubBuilder {
         self
     }
 
-    pub fn with_version(mut self, version: &str) -> Self {
+    pub fn with_version<T: AsRef<str>>(mut self, version: T) -> Self {
         self.book.set_version(version);
         self
     }
 
-    pub fn with_title(mut self, title: &str) -> Self {
+    pub fn with_title<T: AsRef<str>>(mut self, title: T) -> Self {
         self.book.set_title(title);
         self
     }
 
-    pub fn with_identifier(mut self, identifier: &str) -> Self {
+    pub fn with_identifier<T: AsRef<str>>(mut self, identifier: T) -> Self {
         self.book.set_identifier(identifier);
         self
     }
-    pub fn with_creator(mut self, creator: &str) -> Self {
+    pub fn with_creator<T: AsRef<str>>(mut self, creator: T) -> Self {
         self.book.set_creator(creator);
         self
     }
-    pub fn with_description(mut self, description: &str) -> Self {
+    pub fn with_description<T: AsRef<str>>(mut self, description: T) -> Self {
         self.book.set_description(description);
         self
     }
-    pub fn with_contributor(mut self, contributor: &str) -> Self {
+    pub fn with_contributor<T: AsRef<str>>(mut self, contributor: T) -> Self {
         self.book.set_contributor(contributor);
         self
     }
-    pub fn with_date(mut self, date: &str) -> Self {
+    pub fn with_date<T: AsRef<str>>(mut self, date: T) -> Self {
         self.book.set_date(date);
         self
     }
-    pub fn with_format(mut self, format: &str) -> Self {
+    pub fn with_format<T: AsRef<str>>(mut self, format: T) -> Self {
         self.book.set_format(format);
         self
     }
-    pub fn with_publisher(mut self, publisher: &str) -> Self {
+    pub fn with_publisher<T: AsRef<str>>(mut self, publisher: T) -> Self {
         self.book.set_publisher(publisher);
         self
     }
-    pub fn with_subject(mut self, subject: &str) -> Self {
+    pub fn with_subject<T: AsRef<str>>(mut self, subject: T) -> Self {
         self.book.set_subject(subject);
         self
     }
 
-    pub fn with_last_modify(mut self, last_modify: &str) -> Self {
+    pub fn with_last_modify<T: AsRef<str>>(mut self, last_modify: T) -> Self {
         self.book.set_last_modify(last_modify);
         self
     }
@@ -106,8 +108,8 @@ impl EpubBuilder {
     }
 
     /// 设置字体文件路径
-    pub fn with_font(mut self, font_file: &str) -> Self {
-        self.font = Some(font_file.to_string());
+    pub fn with_font<T: Into<String>>(mut self, font_file: T) -> Self {
+        self.font = Some(font_file.into());
         self
     }
 
@@ -122,7 +124,7 @@ impl EpubBuilder {
     ///
     /// 每一对kv都会生成新的meta元素
     ///
-    pub fn metadata(mut self, key: &str, value: &str) -> Self {
+    pub fn metadata<T: Into<String>>(mut self, key: T, value: T) -> Self {
         self.book
             .add_meta(EpubMetaData::default().with_attr(key, value));
         self
@@ -131,7 +133,7 @@ impl EpubBuilder {
     ///
     /// 添加资源文件
     ///
-    pub fn add_assets(mut self, file_name: &str, data: Vec<u8>) -> Self {
+    pub fn add_assets<T: Into<String>>(mut self, file_name: T, data: Vec<u8>) -> Self {
         self.book.add_assets(
             EpubAssets::default()
                 .with_file_name(file_name)
@@ -146,10 +148,10 @@ impl EpubBuilder {
     /// [file_name] epub中的文件名，不是本地文件名
     /// [data] 数据
     ///
-    pub fn cover(mut self, file_name: &str, data: Vec<u8>) -> Self {
+    pub fn cover<T: AsRef<str>>(mut self, file_name: T, data: Vec<u8>) -> Self {
         self.book.set_cover(
             EpubAssets::default()
-                .with_file_name(file_name)
+                .with_file_name(file_name.as_ref())
                 .with_data(data),
         );
 
@@ -244,7 +246,7 @@ impl EpubBuilder {
     ///
     /// 输出到文件
     ///
-    pub fn file(mut self, file: &str) -> IResult<()> {
+    pub fn file<T: AsRef<Path>>(mut self, file: T) -> IResult<()> {
         self.gen_last_modify();
         self.gen_nav();
         self.gen_cover()?;

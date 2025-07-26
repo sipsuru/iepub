@@ -1,6 +1,8 @@
 //! 修改现有epub文件，目前仅支持修改元数据
 //!
 //!
+use std::path::Path;
+
 use super::{
     common, core,
     html::{to_opf, to_toc_xml},
@@ -12,7 +14,7 @@ use crate::prelude::*;
 ///
 /// [file] 原文件路径
 ///
-pub fn write_metadata(file: &str, book: &mut EpubBook) -> IResult<()> {
+pub fn write_metadata<P: AsRef<Path> + ?Sized>(file: &P, book: &mut EpubBook) -> IResult<()> {
     let dir = std::env::temp_dir();
     let temp_file = dir.join(format!("{}.update.epub", std::process::id()));
     {
