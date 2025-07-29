@@ -1,4 +1,4 @@
-use std::{borrow::Cow, ops::Deref, string::FromUtf8Error};
+use std::{borrow::Cow, collections::HashMap, ops::Deref, string::FromUtf8Error};
 ///
 /// 错误
 ///
@@ -124,93 +124,211 @@ pub(crate) fn unescape_html(v: &str) -> String {
     txt
 }
 
-/// 时间戳转换，从1970年开始
-pub(crate) fn time_display(value: u64) -> String {
-    do_time_display(value, 1970)
+pub struct DateTimeFormater {
+    timestamp: u64,
+    start_year: u64,
+    format_map: HashMap<char, fn(u64) -> String>,
+    /// 时区，默认为0
+    timezone_offset: i16,
 }
 
-/// 时间戳转换，支持从不同年份开始计算
-pub(crate) fn do_time_display(value: u64, start_year: u64) -> String {
-    // 先粗略定位到哪一年
-    // 以 365 来计算，年通常只会相比正确值更晚，剩下的秒数也就更多，并且有可能出现需要往前一年的情况
+impl DateTimeFormater {
+    pub fn custom_start(timestamp: u64, start_year: u64) -> Self {
+        // 需要强制指定类型，否则自动推测会出错
+        let t: fn(u64) -> String = Self::format_year;
+        let t2: fn(u64) -> String = Self::format_day;
 
-    let per_year_sec = 365 * 24 * 60 * 60; // 平年的秒数
-
-    let mut year = value / per_year_sec;
-    // 剩下的秒数，如果这些秒数 不够填补闰年，比如粗略计算是 2024年，还有 86300秒，不足一天，那么中间有很多闰年，所以 年应该-1，只有-1，因为-2甚至更多 需要 last_sec > 365 * 86400，然而这是不可能的
-    let last_sec = value - (year) * per_year_sec;
-    year += start_year;
-
-    let mut leap_year_sec = 0;
-    // 计算中间有多少闰年，当前年是否是闰年不影响回退，只会影响后续具体月份计算
-    for y in start_year..year {
-        if is_leap(y) {
-            // 出现了闰年
-            leap_year_sec += 86400;
+        Self {
+            start_year,
+            timezone_offset: 0,
+            timestamp,
+            format_map: HashMap::from([
+                ('Y', t),
+                ('M', t2),
+                ('d', t2),
+                ('H', t2),
+                ('m', t2),
+                ('s', t2),
+            ]),
         }
     }
-    if last_sec < leap_year_sec {
-        // 不够填补闰年，年份应该-1
-        year -= 1;
-        // 上一年是闰年，所以需要补一天
-        if is_leap(year) {
-            leap_year_sec -= 86400;
+    ///
+    ///
+    /// # Params
+    /// - timestamp 秒级时间戳
+    ///
+    pub fn new(timestamp: u64) -> Self {
+        Self::custom_start(timestamp, 1970)
+    }
+
+    pub fn default() -> Self {
+        Self::new(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|v| v.as_secs())
+                .unwrap_or(0),
+        )
+    }
+
+    pub fn with_timezone_offset(mut self, offset: i16) -> Self {
+        self.timezone_offset = offset;
+        self
+    }
+
+    ///
+    /// 格式化
+    ///
+    /// %Y - 2024
+    ///
+    /// %M - 02
+    ///
+    /// %d - 03
+    ///
+    /// %H - 03
+    ///
+    /// %m - 01
+    ///
+    /// %s - 03
+    ///
+    ///
+    pub fn format<T: AsRef<str>>(&self, pattern: T) -> String {
+        let (year, month, day, hour, min, sec) =
+            self.do_time_display(self.timestamp, self.start_year);
+        let values = HashMap::from([
+            ('Y', year),
+            ('M', month),
+            ('d', day),
+            ('H', hour),
+            ('m', min),
+            ('s', sec),
+        ]);
+
+        let mut result = String::new();
+        let mut chars = pattern.as_ref().chars().peekable();
+
+        while let Some(c) = chars.next() {
+            if c == '%' {
+                if let Some(&next_c) = chars.peek() {
+                    if let Some(formatter) = self.format_map.get(&next_c) {
+                        result.push_str(&formatter(*values.get(&next_c).unwrap_or(&0)));
+                        chars.next(); // 跳过已处理的占位符
+                        continue;
+                    }
+                }
+            }
+            result.push(c);
         }
+        result
     }
-    // 剩下的秒数
-    let mut time = value - leap_year_sec - (year - start_year) * per_year_sec;
 
-    // 平年的月份天数累加
-    let mut day_of_year: [u64; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-
-    // 找到了 计算日期
-    let sec = time % 60;
-    time /= 60;
-    let min = time % 60;
-    time /= 60;
-    let hour = time % 24;
-    time /= 24;
-
-    // 计算是哪天，因为每个月不一样多，所以需要修改
-    if is_leap(year) {
-        day_of_year[1] += 1;
+    pub fn default_format(&self) -> String {
+        self.format("%Y-%M-%dT%H:%m:%sZ")
     }
-    let mut month = 0;
-    for (index, ele) in day_of_year.iter().enumerate() {
-        if &time < ele {
-            month = index + 1;
-            time += 1; // 日期必须加一，否则 每年的 第 1 秒就成了第0天了
-            break;
+
+    fn format_year(value: u64) -> String {
+        format!("{:04}", value)
+    }
+
+    fn format_day(value: u64) -> String {
+        format!("{:02}", value)
+    }
+
+    /// 秒级时间戳转换，支持从不同年份开始计算
+    fn do_time_display(&self, value: u64, start_year: u64) -> (u64, u64, u64, u64, u64, u64) {
+        // 先粗略定位到哪一年
+        // 以 365 来计算，年通常只会相比正确值更晚，剩下的秒数也就更多，并且有可能出现需要往前一年的情况
+
+        // 加上时区偏移
+        let offset = self.timezone_offset * 60 * 60;
+
+        let value = if offset < 0 {
+            value - ((offset * -1) as u64)
+        } else {
+            value + (offset as u64)
+        };
+
+        let per_year_sec = 365 * 24 * 60 * 60; // 平年的秒数
+
+        let mut year = value / per_year_sec;
+        // 剩下的秒数，如果这些秒数 不够填补闰年，比如粗略计算是 2024年，还有 86300秒，不足一天，那么中间有很多闰年，所以 年应该-1，只有-1，因为-2甚至更多 需要 last_sec > 365 * 86400，然而这是不可能的
+        let last_sec = value - (year) * per_year_sec;
+        year += start_year;
+
+        let mut leap_year_sec = 0;
+        // 计算中间有多少闰年，当前年是否是闰年不影响回退，只会影响后续具体月份计算
+        for y in start_year..year {
+            if Self::is_leap(y) {
+                // 出现了闰年
+                leap_year_sec += 86400;
+            }
         }
-        time -= ele;
+        if last_sec < leap_year_sec {
+            // 不够填补闰年，年份应该-1
+            year -= 1;
+            // 上一年是闰年，所以需要补一天
+            if Self::is_leap(year) {
+                leap_year_sec -= 86400;
+            }
+        }
+        // 剩下的秒数
+        let mut time = value - leap_year_sec - (year - start_year) * per_year_sec;
+
+        // 平年的月份天数累加
+        let mut day_of_year: [u64; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+        // 找到了 计算日期
+        let sec = time % 60;
+        time /= 60;
+        let min = time % 60;
+        time /= 60;
+        let hour = time % 24;
+        time /= 24;
+
+        // 计算是哪天，因为每个月不一样多，所以需要修改
+        if Self::is_leap(year) {
+            day_of_year[1] += 1;
+        }
+        let mut month = 0;
+        for (index, ele) in day_of_year.iter().enumerate() {
+            if &time < ele {
+                month = index + 1;
+                time += 1; // 日期必须加一，否则 每年的 第 1 秒就成了第0天了
+                break;
+            }
+            time -= ele;
+        }
+
+        (year, month as u64, time, hour, min, sec)
     }
 
-    return format!(
-        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
-        year, month, time, hour, min, sec
-    );
+    //
+    // 判断是否是闰年
+    //
+    fn is_leap(year: u64) -> bool {
+        return year % 4 == 0 && ((year % 100) != 0 || year % 400 == 0);
+    }
 }
-//
-// 判断是否是闰年
-//
-fn is_leap(year: u64) -> bool {
-    return year % 4 == 0 && ((year % 100) != 0 || year % 400 == 0);
-}
-///
-/// 输出当前时间格式化
-///
-/// 例如：
-/// 2023-09-28T09:32:24Z
-///
-pub(crate) fn time_format() -> String {
-    // 获取当前时间戳
-    let time = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|v| v.as_secs())
-        .unwrap_or(0);
 
-    time_display(time)
-}
+// /// 时间戳转换，从1970年开始
+// pub(crate) fn time_display(value: u64) -> String {
+//     do_time_display(value, 1970)
+// }
+
+// ///
+// /// 输出当前时间格式化
+// ///
+// /// 例如：
+// /// 2023-09-28T09:32:24Z
+// ///
+// pub(crate) fn time_format() -> String {
+//     // 获取当前时间戳
+//     let time = std::time::SystemTime::now()
+//         .duration_since(std::time::UNIX_EPOCH)
+//         .map(|v| v.as_secs())
+//         .unwrap_or(0);
+
+//     time_display(time)
+// }
 
 pub(crate) fn get_media_type(file_name: &str) -> String {
     let f = file_name.to_lowercase();
@@ -246,6 +364,7 @@ pub(crate) fn get_media_type(file_name: &str) -> String {
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use crate::common::DateTimeFormater;
 
     pub fn get_req(url: &str) -> minreq::Request {
         let mut req = minreq::get(url);
@@ -318,5 +437,40 @@ pub(crate) mod tests {
             std::fs::write(std::path::Path::new(&out), &mut v).unwrap();
         }
         out
+    }
+
+    #[test]
+    fn test_time_format() {
+        assert_eq!(
+            "2025-07-29T11:41:46Z",
+            DateTimeFormater::new(1753760506)
+                .with_timezone_offset(8)
+                .default_format()
+        );
+
+        assert_eq!(
+            "2025",
+            DateTimeFormater::new(1753760506)
+                .with_timezone_offset(8)
+                .format("%Y")
+        );
+
+        assert_eq!(
+            "2025-07-01T22:00:00Z",
+            DateTimeFormater::new(1751407200).default_format()
+        );
+        assert_eq!(
+            "2025-07-02T06:00:00Z",
+            DateTimeFormater::new(1751407200)
+                .with_timezone_offset(8)
+                .default_format()
+        );
+
+         assert_eq!(
+            "2025-07-01T14:00:00Z",
+            DateTimeFormater::new(1751407200)
+                .with_timezone_offset(-8)
+                .default_format()
+        );
     }
 }

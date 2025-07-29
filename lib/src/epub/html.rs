@@ -146,7 +146,7 @@ fn write_metadata(
     // metadata 内元素
     let now = book
         .last_modify()
-        .map_or_else(|| crate::common::time_format(), String::from);
+        .map_or_else(|| crate::common::DateTimeFormater::default().default_format(), String::from);
 
     xml.create_element("meta")
         .with_attribute(("property", "dcterms:modified"))

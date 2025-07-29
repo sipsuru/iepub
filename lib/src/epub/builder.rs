@@ -1,6 +1,5 @@
 use std::path::Path;
 
-use crate::common::time_format;
 use crate::prelude::*;
 
 ///
@@ -204,7 +203,7 @@ impl EpubBuilder {
 
     fn gen_last_modify(&mut self) {
         if self.book.last_modify().is_none() {
-            self.book.set_last_modify(&time_format());
+            self.book.set_last_modify(&crate::common::DateTimeFormater::default().default_format());
         }
     }
 

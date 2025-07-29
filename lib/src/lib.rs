@@ -7,6 +7,7 @@ mod cover;
 mod epub;
 mod mobi;
 pub mod path;
+pub use crate::common::DateTimeFormater;
 
 pub mod prelude {
     pub use crate::common::IError;
