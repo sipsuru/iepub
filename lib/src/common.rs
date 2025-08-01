@@ -32,6 +32,8 @@ impl std::fmt::Display for IError {
     }
 }
 
+impl std::error::Error for IError {}
+
 pub type IResult<T> = Result<T, IError>;
 
 impl From<std::io::Error> for IError {
