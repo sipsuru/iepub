@@ -1,1 +1,1 @@
-- 实现Error trait以兼容anyhow
+- 修复epub无法被calibre等转换为其他格式问题
