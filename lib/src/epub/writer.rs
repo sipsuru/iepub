@@ -110,6 +110,9 @@ impl<T: Write + Seek> EpubWriter<T> {
 
     /// 写入基础的文件
     fn write_base(&mut self, book: &mut EpubBook) -> IResult<()> {
+        if book.version().is_empty() {
+            book.set_version("2.0");
+        }
         self.write_file(
             "META-INF/container.xml",
             CONTAINER_XML.replace("{opf}", common::OPF).as_bytes(),
