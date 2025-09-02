@@ -286,6 +286,26 @@ impl MobiBuilder {
             .write(&self.book)?;
         Ok(out.into_inner())
     }
+
+    #[cfg(feature = "cache")]
+    pub fn cache<T: AsRef<std::path::Path>>(&self, file: T) -> IResult<()> {
+        std::fs::write(file, serde_json::to_string(&self.book).unwrap())?;
+        Ok(())
+    }
+
+    /// 加载缓存
+    #[cfg(feature = "cache")]
+    pub fn load_from_cache<T: AsRef<std::path::Path>>(file: T) -> IResult<MobiBuilder> {
+        let file = std::fs::File::open(file)?;
+        let reader = std::io::BufReader::new(file);
+
+        // Read the JSON contents of the file as an instance of `User`.
+        let u: MobiBook = serde_json::from_reader(reader)?;
+        let mut builder = Self::new();
+        builder.book = u;
+        // Return the `User`.
+        Ok(builder)
+    }
 }
 
 #[cfg(test)]

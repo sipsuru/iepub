@@ -1,11 +1,8 @@
+cache_struct! {
 /// 章节信息，html片段
 #[derive(Debug)]
 pub struct MobiHtml {
     title: String,
-    /// 原始数据，经编解码后方可阅读
-    raw: Option<Vec<u8>>,
-    /// 在整个文本中的索引位置，读取时使用
-    index: usize,
     /// 唯一id，写入时需要 确保nav能正确指向章节，否则目录会错误
     pub(crate) id: usize,
     /// 可阅读的文本
@@ -13,13 +10,11 @@ pub struct MobiHtml {
 
     pub(crate) nav_id: usize,
 }
-
+}
 impl MobiHtml {
     pub fn new(id: usize) -> Self {
         Self {
             title: String::new(),
-            raw: None,
-            index: 0,
             id,
             data: Vec::new(),
             nav_id: 0,
@@ -55,7 +50,7 @@ impl MobiHtml {
         self
     }
 }
-
+cache_struct! {
 #[derive(Debug, Clone)]
 pub struct MobiNav {
     /// id，唯一
@@ -66,7 +61,7 @@ pub struct MobiNav {
     /// 写入时指向章节
     pub(crate) chap_id: usize,
 }
-
+}
 impl MobiNav {
     pub fn title(&self) -> &str {
         &self.title
@@ -146,7 +141,7 @@ fn set_nav_id(nav: &mut [MobiNav], nav_id: usize, chap_id: usize) -> bool {
     }
     false
 }
-
+cache_struct! {
 #[derive(Debug)]
 pub struct MobiAssets {
     pub(crate) _file_name: String,
@@ -154,7 +149,7 @@ pub struct MobiAssets {
     pub(crate) _data: Option<Vec<u8>>,
     pub(crate) recindex: usize,
 }
-
+}
 impl MobiAssets {
     pub fn new(data: Vec<u8>) -> Self {
         MobiAssets {
@@ -176,7 +171,7 @@ impl MobiAssets {
         self
     }
 }
-
+cache_struct! {
 #[derive(Debug, Default)]
 pub struct MobiBook {
     info: crate::common::BookInfo,
@@ -193,7 +188,7 @@ pub struct MobiBook {
     /// 目录
     nav: Vec<MobiNav>,
 }
-
+}
 impl MobiBook {
     iepub_derive::option_string_method!(info, creator);
     iepub_derive::option_string_method!(info, description);
@@ -280,6 +275,25 @@ impl MobiBook {
     pub fn add_nav(&mut self, value: MobiNav) {
         self.nav.push(value);
     }
+
+    #[cfg(feature = "cache")]
+    pub fn cache<T: AsRef<std::path::Path>>(&self, file: T) -> IResult<()> {
+        std::fs::write(file, serde_json::to_string(self).unwrap())?;
+        Ok(())
+    }
+
+    /// 加载缓存
+    #[cfg(feature = "cache")]
+    pub fn load_from_cache<T: AsRef<std::path::Path>>(file: T) -> IResult<MobiBook> {
+        let file = std::fs::File::open(file)?;
+        let reader = std::io::BufReader::new(file);
+
+        // Read the JSON contents of the file as an instance of `User`.
+        let u: MobiBook = serde_json::from_reader(reader)?;
+
+        // Return the `User`.
+        Ok(u)
+    }
 }
 
 use std::{
@@ -287,7 +301,7 @@ use std::{
     sync::atomic::AtomicUsize,
 };
 
-use crate::common::IResult;
+use crate::{cache_struct, common::IResult};
 
 use super::{common::do_time_format, reader::MobiReader};
 
@@ -312,9 +326,7 @@ impl<T: Read + Seek> MobiReader<T> {
                     .map(|(sec, nav)| MobiHtml {
                         id: id.fetch_add(1, std::sync::atomic::Ordering::Release),
                         nav_id: nav.id,
-                        index: sec.index,
                         title: nav.title.clone(),
-                        raw: None,
                         data: sec.data.as_bytes().to_vec(),
                     })
                     .collect(),
@@ -331,9 +343,7 @@ impl<T: Read + Seek> MobiReader<T> {
                 let html = MobiHtml {
                     id: id.fetch_add(1, std::sync::atomic::Ordering::Release),
                     nav_id: index,
-                    index: s.index,
                     title: format!("{}", index + 1),
-                    raw: None,
                     data: s.data.as_bytes().to_vec(),
                 };
                 t_nav.push(MobiNav::new(index, html.id).with_title(html.title()));
@@ -405,6 +415,37 @@ mod tests {
         }
         println!("======");
         println!("{:?}", book.nav);
+    }
+
+    #[test]
+    #[cfg(feature = "cache")]
+    fn test_cache() {
+        use crate::prelude::MobiBook;
+
+        let name = "3252.mobi";
+
+        let path = std::env::current_dir().unwrap().join(download_zip_file(
+            name,
+            "https://github.com/user-attachments/files/18904584/3252.zip",
+        ));
+        let mut mobi =
+            MobiReader::new(std::fs::File::open(path.to_str().unwrap()).unwrap()).unwrap();
+        let f = if std::path::Path::new("target").exists() {
+            "target/cache-mobi.json"
+        } else {
+            "../target/cache-mobi.json"
+        };
+        let book = mobi.load().unwrap();
+
+        book.cache(f).unwrap();
+
+        let book2 = MobiBook::load_from_cache(f).unwrap();
+
+
+
+        assert_eq!(book.chapters.len(), book2.chapters.len());
+        assert_eq!(book.chapters[0].data, book2.chapters[0].data);
+        assert_eq!(book.images[0]._data, book2.images[0]._data);
     }
 
     #[test]

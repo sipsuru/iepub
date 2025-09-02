@@ -5,22 +5,105 @@ use std::sync::{Arc, Mutex};
 
 use super::common::{self};
 use super::html::{get_html_info, to_html};
+use crate::cache_struct;
 use crate::common::{IError, IResult};
 use crate::epub::common::LinkRel;
-use crate::epub_base_field;
 
 pub(crate) mod info {
     include!(concat!(env!("OUT_DIR"), "/version.rs"));
 }
 
-/**
- * 链接文件，可能是css
- */
-#[derive(Debug)]
-pub struct EpubLink {
-    pub rel: LinkRel,
-    pub file_type: String,
-    pub href: String,
+macro_rules! epub_base_field{
+    (
+     // meta data about struct
+     $(#[$meta:meta])*
+     $vis:vis struct $struct_name:ident {
+        $(
+        // meta data about field
+        $(#[$field_meta:meta])*
+        $field_vis:vis $field_name:ident : $field_type:ty
+        ),*$(,)?
+    }
+    ) => {
+
+            crate::cache_struct!{
+                $(#[$meta])*
+                pub struct $struct_name{
+
+                    id:String,
+                    _file_name:String,
+                    media_type:String,
+                    _data: Option<Vec<u8>>,
+                    #[cfg(not(feature="cache"))]
+                    reader:Option<std::sync::Arc<std::sync::Mutex< Box<dyn EpubReaderTrait+Send+Sync>>>>,
+                    #[cfg(feature="cache")]
+                    #[serde(skip)]
+                    reader:Option<std::sync::Arc<std::sync::Mutex< Box<dyn EpubReaderTrait+Send+Sync>>>>,
+                    $(
+                        $(#[$field_meta])*
+                        $field_vis $field_name : $field_type,
+                    )*
+
+                }
+            }
+
+            impl $struct_name {
+                ///
+                /// 文件路径
+                ///
+                /// 注意，如果是 EPUB 目录下的文件，返回的时候不会带有EPUB路径
+                ///
+                pub fn file_name(&self)->&str{
+                    self._file_name.as_str()
+                }
+                ///
+                /// 设置文件路径
+                ///
+                pub fn set_file_name<T:Into<String>>(&mut self,value: T){
+                    self._file_name = value.into();
+                }
+
+                pub fn id(&self)->&str{
+                    self.id.as_str()
+                }
+                pub fn set_id<T:Into<String>>(&mut self,id: T){
+                    self.id = id.into();
+                }
+
+                pub fn set_data(&mut self, data: Vec<u8>) {
+                    // if let Some(d) = &mut self._data {
+                    //     d.clear();
+                    //     d.append(data);
+                    // }else{
+                        self._data = Some(data);
+                    // }
+                }
+                pub fn with_file_name<T: Into<String>>(mut self,value: T)->Self{
+                    self.set_file_name(value);
+                    self
+                }
+
+                pub fn with_data(mut self, value:Vec<u8>)->Self{
+                    self.set_data(value);
+                    self
+                }
+
+            }
+
+
+    }
+}
+
+crate::cache_struct! {
+    /**
+     * 链接文件，可能是css
+     */
+    #[derive(Debug)]
+    pub struct EpubLink {
+        pub rel: LinkRel,
+        pub file_type: String,
+        pub href: String,
+    }
 }
 
 epub_base_field! {
@@ -204,7 +287,7 @@ epub_base_field! {
 ///
 #[derive(Default,Clone)]
 pub struct EpubAssets {
-    version:String,
+   pub(crate) version:String,
 }
 }
 
@@ -360,6 +443,7 @@ impl EpubNav {
     }
 }
 
+cache_struct! {
 ///
 /// 书籍元数据
 ///
@@ -371,6 +455,7 @@ pub struct EpubMetaData {
     attr: HashMap<String, String>,
     /// 文本
     text: Option<String>,
+}
 }
 
 impl EpubMetaData {
@@ -403,7 +488,7 @@ impl EpubMetaData {
         self.attr.get(key.as_ref())
     }
 }
-
+crate::cache_struct! {
 /// 书本
 #[derive(Default)]
 pub struct EpubBook {
@@ -426,9 +511,14 @@ pub struct EpubBook {
     /// 版本号
     version: String,
     /// 处于读模式
-    reader: Option<Arc<Mutex<Box<dyn EpubReaderTrait + Send + Sync>>>>,
+    #[cfg(not(feature="cache"))]
+    reader:Option<std::sync::Arc<std::sync::Mutex< Box<dyn EpubReaderTrait+Send+Sync>>>>,
+    #[cfg(feature="cache")]
+    #[serde(skip)]
+    reader:Option<std::sync::Arc<std::sync::Mutex< Box<dyn EpubReaderTrait+Send+Sync>>>>,
     /// PREFIX
     pub(crate) prefix: String,
+}
 }
 
 impl Display for EpubBook {
@@ -681,6 +771,25 @@ impl EpubBook {
             assets.with_version(&version);
         }
     }
+
+    #[cfg(feature = "cache")]
+    pub fn cache<T: AsRef<std::path::Path>>(&self, file: T) -> IResult<()> {
+        std::fs::write(file, serde_json::to_string(self).unwrap())?;
+        Ok(())
+    }
+
+    /// 加载缓存
+    #[cfg(feature = "cache")]
+    pub fn load_from_cache<T: AsRef<std::path::Path>>(file: T) -> IResult<EpubBook> {
+        let file = std::fs::File::open(file)?;
+        let reader = std::io::BufReader::new(file);
+
+        // Read the JSON contents of the file as an instance of `User`.
+        let u: EpubBook = serde_json::from_reader(reader)?;
+
+        // Return the `User`.
+        Ok(u)
+    }
 }
 
 /// 获取最低层级的目录
@@ -718,8 +827,7 @@ mod tests {
 
     use crate::prelude::*;
 
-    #[test]
-    fn write_assets() {
+    fn book() -> EpubBook {
         let mut book = EpubBook::default();
 
         // 添加文本资源文件
@@ -790,11 +898,35 @@ mod tests {
         cover.set_data(data);
 
         book.set_cover(cover);
+        book
+    }
+
+    #[test]
+    fn write_assets() {
+        let mut book: EpubBook = book();
 
         // EpubWriter::write_to_file("file", &mut book).unwrap();
 
         EpubWriter::write_to_file("12.epub", &mut book, true).unwrap();
 
         // EpubWriter::<std::fs::File>write_to_file("../target/test.epub", &mut book).expect("write error");
+    }
+
+    #[test]
+    #[cfg(feature = "cache")]
+    fn test_cache() {
+        let mut book: EpubBook = book();
+        let f = if std::path::Path::new("target").exists() {
+            "target/cache.json"
+        } else {
+            "../target/cache.json"
+        };
+        book.cache(f).unwrap();
+
+        let book2 = EpubBook::load_from_cache(f).unwrap();
+
+        assert_eq!(book.chapters.len(), book2.chapters.len());
+        assert_eq!(book.chapters[0]._data, book2.chapters[0]._data);
+        assert_eq!(book.assets[0]._data, book2.assets[0]._data);
     }
 }
