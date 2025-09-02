@@ -276,6 +276,28 @@ impl EpubBuilder {
 
         Ok(v.into_inner())
     }
+
+    #[cfg(feature = "cache")]
+    pub fn cache<T: AsRef<Path>>(&self, file: T) -> IResult<()> {
+        std::fs::write(file, serde_json::to_string(&self.book).unwrap())?;
+        Ok(())
+    }
+
+    /// 加载缓存，只加载核心book数据，builder自有属性不做缓存
+    #[cfg(feature = "cache")]
+    pub fn load_from_cache<T: AsRef<Path>>(file: T) -> IResult<EpubBuilder> {
+        let file = std::fs::File::open(file)?;
+        let reader = std::io::BufReader::new(file);
+
+        // Read the JSON contents of the file as an instance of `User`.
+        let u: EpubBook = serde_json::from_reader(reader)?;
+
+        let mut builder = Self::new();
+        builder.book = u;
+        // Return the `User`.
+        Ok(builder)
+    }
+
 }
 
 #[cfg(test)]

@@ -1,4 +1,70 @@
 use std::{borrow::Cow, collections::HashMap, ops::Deref, string::FromUtf8Error};
+#[macro_export]
+macro_rules! cache_struct{
+    (
+     // meta data about struct
+     $(#[$meta:meta])*
+     $vis:vis struct $struct_name:ident {
+        $(
+        // meta data about field
+        $(#[$field_meta:meta])*
+        $field_vis:vis $field_name:ident : $field_type:ty
+        ),*$(,)?
+    }
+    ) => {
+            #[cfg(feature = "cache")]
+            #[derive(serde::Deserialize,serde::Serialize)]
+            $(#[$meta])*
+            pub struct $struct_name{
+                $(
+                    $(#[$field_meta])*
+                    $field_vis $field_name : $field_type,
+                )*
+            }
+            #[cfg(not(feature = "cache"))]
+            $(#[$meta])*
+            pub struct $struct_name{
+                $(
+                    $(#[$field_meta])*
+                    $field_vis $field_name : $field_type,
+                )*
+
+            }
+
+    }
+}
+#[macro_export]
+macro_rules! cache_enum {
+    // 基础枚举匹配
+    (
+        $(#[$meta:meta])*
+        $vis:vis enum $name:ident { $($body:tt)* }) => {
+        #[derive(Debug)]
+        #[cfg(not(feature="cache"))]
+        $(#[$meta])*
+        $vis enum $name { $($body)* }
+
+        #[derive(Debug,serde::Deserialize,serde::Serialize)]
+        #[cfg(feature="cache")]
+        $(#[$meta])*
+        $vis enum $name { $($body)* }
+    };
+
+    // 带显式属性的枚举
+    ($(#[$meta:meta])* enum $name:ident { $($body:tt)* }) => {
+        $(#[$meta])*
+        #[derive(Debug, Default)]
+        enum $name { $($body)* }
+    };
+
+    // 支持泛型枚举
+    ($(#[$meta:meta])* enum $name:ident<$T:ident> { $($body:tt)* }) => {
+        $(#[$meta])*
+        #[derive(Debug)]
+        enum $name<$T> { $($body)* }
+    };
+}
+
 ///
 /// 错误
 ///
@@ -23,7 +89,16 @@ pub enum IError {
     Xml(quick_xml::Error),
     NoNav(&'static str),
     Cover(String),
+    #[cfg(feature = "cache")]
+    Cache(String),
     Unknown,
+}
+
+#[cfg(feature = "cache")]
+impl From<serde_json::Error> for IError {
+    fn from(value: serde_json::Error) -> Self {
+        Self::Cache(format!("{:?}", value))
+    }
 }
 
 impl std::fmt::Display for IError {
@@ -55,32 +130,33 @@ impl From<FromUtf8Error> for IError {
         IError::Utf8(value)
     }
 }
+cache_struct! {
+    #[derive(Debug, Default)]
+    pub(crate) struct BookInfo {
+        /// 书名
+        pub(crate) title: String,
 
-#[derive(Debug, Default)]
-pub(crate) struct BookInfo {
-    /// 书名
-    pub(crate) title: String,
+        /// 标志，例如imbi
+        pub(crate) identifier: String,
+        /// 作者
+        pub(crate) creator: Option<String>,
+        ///
+        /// 简介
+        ///
+        pub(crate) description: Option<String>,
+        /// 文件创建者
+        pub(crate) contributor: Option<String>,
 
-    /// 标志，例如imbi
-    pub(crate) identifier: String,
-    /// 作者
-    pub(crate) creator: Option<String>,
-    ///
-    /// 简介
-    ///
-    pub(crate) description: Option<String>,
-    /// 文件创建者
-    pub(crate) contributor: Option<String>,
+        /// 出版日期
+        pub(crate) date: Option<String>,
 
-    /// 出版日期
-    pub(crate) date: Option<String>,
-
-    /// 格式?
-    pub(crate) format: Option<String>,
-    /// 出版社
-    pub(crate) publisher: Option<String>,
-    /// 主题？
-    pub(crate) subject: Option<String>,
+        /// 格式?
+        pub(crate) format: Option<String>,
+        /// 出版社
+        pub(crate) publisher: Option<String>,
+        /// 主题？
+        pub(crate) subject: Option<String>,
+    }
 }
 impl BookInfo {
     pub(crate) fn append_creator(&mut self, v: &str) {
@@ -468,7 +544,7 @@ pub(crate) mod tests {
                 .default_format()
         );
 
-         assert_eq!(
+        assert_eq!(
             "2025-07-01T14:00:00Z",
             DateTimeFormater::new(1751407200)
                 .with_timezone_offset(-8)

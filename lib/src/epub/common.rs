@@ -1,82 +1,8 @@
-#[derive(Debug)]
-pub enum LinkRel {
-    CSS,
-    OTHER,
-}
 
-#[macro_export]
-macro_rules! epub_base_field{
-    (
-     // meta data about struct
-     $(#[$meta:meta])*
-     $vis:vis struct $struct_name:ident {
-        $(
-        // meta data about field
-        $(#[$field_meta:meta])*
-        $field_vis:vis $field_name:ident : $field_type:ty
-        ),*$(,)?
-    }
-    ) => {
-
-            $(#[$meta])*
-            pub struct $struct_name{
-
-                id:String,
-                _file_name:String,
-                media_type:String,
-                _data: Option<Vec<u8>>,
-                reader:Option<std::sync::Arc<std::sync::Mutex< Box<dyn EpubReaderTrait+Send+Sync>>>>,
-                $(
-                    $(#[$field_meta])*
-                    $field_vis $field_name : $field_type,
-                )*
-
-            }
-
-            impl $struct_name {
-                ///
-                /// 文件路径
-                ///
-                /// 注意，如果是 EPUB 目录下的文件，返回的时候不会带有EPUB路径
-                ///
-                pub fn file_name(&self)->&str{
-                    self._file_name.as_str()
-                }
-                ///
-                /// 设置文件路径
-                ///
-                pub fn set_file_name<T:Into<String>>(&mut self,value: T){
-                    self._file_name = value.into();
-                }
-
-                pub fn id(&self)->&str{
-                    self.id.as_str()
-                }
-                pub fn set_id<T:Into<String>>(&mut self,id: T){
-                    self.id = id.into();
-                }
-
-                pub fn set_data(&mut self, data: Vec<u8>) {
-                    // if let Some(d) = &mut self._data {
-                    //     d.clear();
-                    //     d.append(data);
-                    // }else{
-                        self._data = Some(data);
-                    // }
-                }
-                pub fn with_file_name<T: Into<String>>(mut self,value: T)->Self{
-                    self.set_file_name(value);
-                    self
-                }
-
-                pub fn with_data(mut self, value:Vec<u8>)->Self{
-                    self.set_data(value);
-                    self
-                }
-
-            }
-
-
+crate::cache_enum!{
+    pub enum LinkRel {
+        CSS,
+        OTHER,
     }
 }
 
