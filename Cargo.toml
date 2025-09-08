@@ -1,11 +1,11 @@
 [workspace]
-members = [ "derive", "lib", "tool"] 
+members = [ "derive", "lib"] 
 resolver = "2"
 rust-version = "1.84.0"
 
 [workspace.package]
 name = "iepub"
-version = "1.1.0"
+version = "1.1.1"
 edition = "2021"
 license = "MIT"
 description = "epub、mobi电子书读写"

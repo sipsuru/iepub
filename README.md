@@ -154,7 +154,7 @@ MobiWriter::new(&mut v)
 
 ## 命令行工具
 
-[tool](https://github.com/inkroom/iepub/releases)目录为命令行工具，支持mobi和epub格式，但是不同格式支持的命令不尽相同
+[lib/src/cli](https://github.com/inkroom/iepub/releases)目录为命令行工具，支持mobi和epub格式，但是不同格式支持的命令不尽相同
 
 目前支持
 - 获取元数据，如标题、作者
@@ -166,6 +166,8 @@ MobiWriter::new(&mut v)
 - 格式转换
 
 可通过`-h`获取使用方法说明
+
+可以使用`cargo install iepub`安装
 
 ## 缓存
 

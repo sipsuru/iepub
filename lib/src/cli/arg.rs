@@ -416,7 +416,7 @@ fn check_command_opt(arg: &Arg, command_option_def: &[CommandOptionDef]) {
 
 #[cfg(test)]
 mod tests {
-    use crate::arg::OptionType;
+    use crate::cli::arg::OptionType;
 
     use super::{parse_command_arg, parse_global_arg, Arg, CommandOptionDef, OptionDef};
     fn create_option_def() -> Vec<OptionDef> {

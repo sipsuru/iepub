@@ -1,7 +1,7 @@
 use std::io::Write;
 
 use crate::{
-    arg::{self},
+    cli::arg::{self},
     exec_err, msg,
 };
 use iepub::prelude::*;
@@ -107,9 +107,9 @@ fn read_book(file: &str) -> IResult<OwnBook> {
 }
 
 pub(crate) mod epub {
-    use crate::command::get_single_input;
-    use crate::command::is_overiade;
-    use crate::command::write_file;
+    use crate::cli::command::get_single_input;
+    use crate::cli::command::is_overiade;
+    use crate::cli::command::write_file;
     use crate::exec_err;
     use crate::Book;
     use iepub::prelude::adapter::add_into_epub;
@@ -124,7 +124,7 @@ pub(crate) mod epub {
     use iepub::prelude::MobiWriter;
 
     use crate::{
-        arg::{self, ArgOption, CommandOptionDef, OptionDef, OptionType},
+        cli::arg::{self, ArgOption, CommandOptionDef, OptionDef, OptionType},
         msg, Command,
     };
 
@@ -800,7 +800,7 @@ pub(crate) mod mobi {
     use iepub::prelude::{adapter::mobi_to_epub, EpubWriter, MobiNav};
 
     use crate::{
-        arg::{self, ArgOption, OptionDef, OptionType},
+        cli::arg::{self, ArgOption, OptionDef, OptionType},
         exec_err, msg, Book, Command,
     };
 

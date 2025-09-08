@@ -3,15 +3,13 @@
 //! tool -i file.epub get-cover 1.jpg
 //!
 
+mod cli;
+
 use std::{env, fs::File};
 
-use arg::{Arg, ArgOption, OptionDef, OptionType};
+use cli::arg::{Arg, ArgOption, OptionDef, OptionType};
 use commands::{epub, mobi};
 use iepub::prelude::*;
-
-mod arg;
-mod command;
-mod log;
 
 /// 支持的全局参数
 fn create_option_def() -> Vec<OptionDef> {
@@ -26,7 +24,7 @@ fn create_option_def() -> Vec<OptionDef> {
 mod commands {
     macro_rules! register_command {
         ($($cmd_type:ident),*) => {
-            pub(crate) fn create_command_option_def() -> Vec<$crate::arg::CommandOptionDef> {
+            pub(crate) fn create_command_option_def() -> Vec<$crate::cli::arg::CommandOptionDef> {
                 vec![
                 $(
                 $cmd_type::def(),
@@ -45,7 +43,7 @@ mod commands {
         };
     }
     pub(crate) mod epub {
-        use crate::command::epub::*;
+        use crate::cli::command::epub::*;
 
         // 注册子命令
         register_command!(
@@ -60,7 +58,7 @@ mod commands {
         );
     }
     pub(crate) mod mobi {
-        use crate::command::mobi::*;
+        use crate::cli::command::mobi::*;
         register_command!(BookInfoGetter, GetImage, GetCover, Unpack, FormatConvert);
     }
 }
@@ -148,10 +146,10 @@ fn main() {
     let mut s: Vec<String> = env::args().collect();
     let exe_file_name = s.remove(0); //把第一个参数去掉
 
-    let (mut arg, index) = arg::parse_global_arg(s, create_option_def()).unwrap();
+    let (mut arg, index) = cli::arg::parse_global_arg(s, create_option_def()).unwrap();
 
     // 设置日志
-    log::set_enable_log(arg.find_opt("l").is_some());
+    cli::log::set_enable_log(arg.find_opt("l").is_some());
 
     if print_useage(&arg, &exe_file_name) {
         return;
@@ -165,7 +163,7 @@ fn main() {
     if let Some((input_type, _)) = input_type {
         // 解析参数
         // 解析后续参数
-        arg::parse_command_arg(
+        cli::arg::parse_command_arg(
             &mut arg,
             env::args().skip(index + 1).map(|f| f.to_string()).collect(),
             if input_type == 0 {
