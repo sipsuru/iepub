@@ -199,14 +199,14 @@ impl MobiBuilder {
             let mut id = 0;
             // 生成简单目录
             let mut nav: Vec<MobiNav> = Vec::new();
-            for ele in self.book.chapters_mut() {
+            for (index, ele) in self.book.chapters_mut().enumerate() {
                 id += 1;
                 ele.nav_id = id;
                 // 不能一次循环直接添加，因为会出现重复借用
                 nav.push(
                     MobiNav::default(id)
                         .with_chap_id(ele.id)
-                        .with_title(ele.title()),
+                        .with_title(format!("{}. {}",index + 1, ele.title())),
                 );
             }
 

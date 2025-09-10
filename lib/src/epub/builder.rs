@@ -186,11 +186,11 @@ impl EpubBuilder {
         } else {
             // 生成简单目录
             let mut nav: Vec<EpubNav> = Vec::new();
-            for ele in self.book.chapters() {
+            for (index, ele) in self.book.chapters().enumerate() {
                 // 不能一次循环直接添加，因为会出现重复借用
                 nav.push(
                     EpubNav::default()
-                        .with_title(ele.title())
+                        .with_title(format!("{}. {}",index + 1 , ele.title()))
                         .with_file_name(ele.file_name()),
                 );
             }
@@ -337,6 +337,7 @@ mod tests {
             .add_chapter(
                 EpubHtml::default()
                     .with_file_name("0.xml")
+                    .with_title("第一章")
                     .with_data("<p>锻炼</p>".to_string().as_bytes().to_vec()),
             )
             .add_assets("1.css", "p{color:red}".to_string().as_bytes().to_vec())

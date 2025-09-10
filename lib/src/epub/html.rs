@@ -56,7 +56,7 @@ pub(crate) fn to_html(chap: &mut EpubHtml, append_title: bool) -> String {
 
 fn to_nav_xml(nav: std::slice::Iter<EpubNav>) -> String {
     let mut xml = String::new();
-    xml.push_str("<ol>");
+    xml.push_str("<ul>");
     for ele in nav {
         if ele.child().len() == 0 {
             // 没有下一级
@@ -80,7 +80,7 @@ fn to_nav_xml(nav: std::slice::Iter<EpubNav>) -> String {
             );
         }
     }
-    xml.push_str("</ol>");
+    xml.push_str("</ul>");
     xml
 }
 
@@ -557,7 +557,7 @@ ok
         println!("{}", html);
 
         assert_eq!(
-            r###"<?xml version='1.0' encoding='utf-8'?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="zh" xml:lang="zh"><head><title>book_title</title></head><body><nav epub:type="toc" id="id" role="doc-toc"><h2>book_title</h2><ol><li><a href="file_name">作品说明</a></li><li><a href="0.xhtml">第一卷</a><ol><li><a href="0.xhtml">第一卷 第一章</a></li></ol></li></ol></nav></body></html>"###,
+            r###"<?xml version='1.0' encoding='utf-8'?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="zh" xml:lang="zh"><head><title>book_title</title></head><body><nav epub:type="toc" id="id" role="doc-toc"><h2>book_title</h2><ul><li><a href="file_name">作品说明</a></li><li><a href="0.xhtml">第一卷</a><ul><li><a href="0.xhtml">第一卷 第一章</a></li></ul></li></ul></nav></body></html>"###,
             html
         );
     }
