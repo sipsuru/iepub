@@ -3,7 +3,7 @@ members = [ "derive", "lib"]
 resolver = "2"
 
 [workspace.package]
-rust-version = "1.88.0"
+rust-version = "1.89.0"
 version = "1.3.6"
 edition = "2021"
 license = "MIT"
